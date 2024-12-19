@@ -361,4 +361,22 @@ psa_status_t cracen_spake2p_get_shared_key(cracen_spake2p_operation_t *operation
 
 psa_status_t cracen_spake2p_abort(cracen_spake2p_operation_t *operation);
 
+int ed25519_sign(const uint8_t *ed25519, char *signature,
+					const uint8_t *message, size_t message_length);
+
+int ed25519_verify(const uint8_t *pubkey, const char *message,
+					size_t message_length, const char *signature);
+
+
+int ed25519ph_sign(const uint8_t *ed25519, char *signature,
+					const uint8_t *message, size_t message_length, int ismessage);
+
+int ed25519ph_verify(const uint8_t *pubkey, const char *message,
+					size_t message_length, const char *signature, int ismessage);
+
+int ed25519_create_pubkey(const uint8_t *ed25519,
+					uint8_t *pubkey);
+
+int rndinrange_create(const unsigned char *n, size_t nsz, unsigned char *out);
+
 #endif /* CRACEN_PSA_H */
