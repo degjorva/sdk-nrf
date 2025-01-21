@@ -238,28 +238,36 @@ int ed25519_verify_internal(const uint8_t *pubkey, const char *message,
 
 
 	status = sx_hash_create(&hashopctx, &sxhashalg_sha2_512, sizeof(hashopctx));
+	status = sx_hash_wait(&hashopctx);
 	if (status != 0) {
 		return status;
 	}
 	if (prehash) {
 		status = sx_hash_feed(&hashopctx, dom2, sizeof(dom2));
+		status = sx_hash_wait(&hashopctx);
 		if (status != 0) {
 			return status;
 		}
 	}
 	status = sx_hash_feed(&hashopctx, signature, SX_ED25519_SZ);
+	status = sx_hash_wait(&hashopctx);
 	if (status != 0) {
 		return status;
 	}
 	status = sx_hash_feed(&hashopctx, pubkey, SX_ED25519_SZ);
+	status = sx_hash_wait(&hashopctx);
+
 	if (status != 0) {
 		return status;
 	}
 	status = sx_hash_feed(&hashopctx, message, message_length);
+	status = sx_hash_wait(&hashopctx);
 	if (status != 0) {
 		return status;
 	}
 	status = sx_hash_digest(&hashopctx, workmem);
+	status = sx_hash_wait(&hashopctx);
+
 	if (status != 0) {
 		return status;
 	}
