@@ -45,19 +45,6 @@
 #include "final.h"
 #include "util.h"
 
-/* This is the ASCII string with the
- * PHflag 1 and context size 0 appended as defined in:
- * https://datatracker.ietf.org/doc/html/rfc8032.html#section-2
- * used for domain seperation between Ed25519 and Ed25519ph
- */
-const char dom2[34] = {
-	0x53, 0x69, 0x67, 0x45, 0x64, 0x32, 0x35,
-	0x35, 0x31, 0x39, 0x20, 0x6e, 0x6f, 0x20,
-	0x45, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39,
-	0x20, 0x63, 0x6f, 0x6c, 0x6c, 0x69, 0x73,
-	0x69, 0x6f, 0x6e, 0x73, 0x01, 0x00
-};
-
 static int finish_ed25519ph_ver(struct sitask *t, struct siwq *wq)
 {
 	(void)wq;
@@ -103,12 +90,22 @@ static void run_ed25519ph_ver(struct sitask *t)
 }
 
 static void si_sig_create_ed25519ph_verify(struct sitask *t, const struct si_sig_pubkey *pubkey,
-					 const struct si_sig_signature *signature)
+					   const struct si_sig_signature *signature)
 {
 	if (t->workmemsz < SX_ED25519_DGST_SZ) {
 		si_task_mark_final(t, SX_ERR_WORKMEM_BUFFER_TOO_SMALL);
 		return;
 	}
+
+	/* This is the ASCII string with the
+	 * PHflag 1 and context size 0 appended as defined in:
+	 * https://datatracker.ietf.org/doc/html/rfc8032.html#section-2
+	 * used for domain seperation between Ed25519 and Ed25519ph.
+	 * Can not be stored as a const due to hardware limitations
+	 */
+	char dom2[34] = {0x53, 0x69, 0x67, 0x45, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x20, 0x6e,
+			 0x6f, 0x20, 0x45, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x20, 0x63, 0x6f,
+			 0x6c, 0x6c, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x73, 0x01, 0x00};
 
 	si_hash_create(t, &sxhashalg_sha2_512);
 	si_task_consume(t, dom2, sizeof(dom2));
@@ -185,6 +182,16 @@ static int ed25519ph_sign_k_hash(struct sitask *t, struct siwq *wq)
 	sx_async_ed25519_ptmult_end(t->pk, (struct sx_ed25519_pt *)(t->workmem + SX_ED25519_SZ));
 
 	si_wq_run_after(t, &t->params.ed25519_sign.wq, ed25519ph_sign_continue);
+
+	/* This is the ASCII string with the
+	 * PHflag 1 and context size 0 appended as defined in:
+	 * https://datatracker.ietf.org/doc/html/rfc8032.html#section-2
+	 * used for domain seperation between Ed25519 and Ed25519ph.
+	 * Can not be stored as a const due to hardware limitations
+	 */
+	char dom2[34] = {0x53, 0x69, 0x67, 0x45, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x20, 0x6e,
+			 0x6f, 0x20, 0x45, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x20, 0x63, 0x6f,
+			 0x6c, 0x6c, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x73, 0x01, 0x00};
 
 	/* Obtain k by hashing (R || A || message). */
 	si_hash_create(t, &sxhashalg_sha2_512);
@@ -277,6 +284,16 @@ static int ed25519ph_sign_message(struct sitask *t, struct siwq *wq)
 	}
 
 	si_wq_run_after(t, &t->params.ed25519_sign.wq, ed25519ph_sign_r_ptmult);
+
+	/* This is the ASCII string with the
+	 * PHflag 1 and context size 0 appended as defined in:
+	 * https://datatracker.ietf.org/doc/html/rfc8032.html#section-2
+	 * used for domain seperation between Ed25519 and Ed25519ph.
+	 * Can not be stored as a const due to hardware limitations
+	 */
+	char dom2[34] = {0x53, 0x69, 0x67, 0x45, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x20, 0x6e,
+			 0x6f, 0x20, 0x45, 0x64, 0x32, 0x35, 0x35, 0x31, 0x39, 0x20, 0x63, 0x6f,
+			 0x6c, 0x6c, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x73, 0x01, 0x00};
 
 	/* Obtain r by hashing (prefix || message), where prefix is the second
 	 * half of the private key digest.
