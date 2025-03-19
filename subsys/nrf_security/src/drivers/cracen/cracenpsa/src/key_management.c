@@ -649,41 +649,59 @@ static psa_status_t export_ecc_public_key_from_keypair(const psa_key_attributes_
 		case PSA_ECC_FAMILY_SECP_R1:
 		case PSA_ECC_FAMILY_SECP_K1:
 		case PSA_ECC_FAMILY_BRAINPOOL_P_R1:
-			priv_key.def = si_sig_def_ecdsa;
-			priv_key.key.eckey.curve = sx_curve;
-			priv_key.key.eckey.d = (char *)key_buffer;
+			if (IS_ENABLED(PSA_NEED_CRACEN_ECDSA_SECP_R1) ||
+			    IS_ENABLED(PSA_NEED_CRACEN_ECDSA_SECP_K1) ||
+			    IS_ENABLED(PSA_NEED_CRACEN_ECDSA_BRAINPOOL_P_R1)) {
+				priv_key.def = si_sig_def_ecdsa;
+				priv_key.key.eckey.curve = sx_curve;
+				priv_key.key.eckey.d = (char *)key_buffer;
 
-			data[0] = SI_ECC_PUBKEY_UNCOMPRESSED;
-			pub_key.key.eckey.qx = &data[1];
-			pub_key.key.eckey.qy = &data[1 + sx_pk_curve_opsize(sx_curve)];
-			break;
-		case PSA_ECC_FAMILY_MONTGOMERY:
-			if (key_bits_attr == 255) {
-				priv_key.def = si_sig_def_x25519;
-				priv_key.key.x25519 = (struct sx_x25519_op *)key_buffer;
-				pub_key.key.x25519 = (struct sx_x25519_pt *)data;
+				data[0] = SI_ECC_PUBKEY_UNCOMPRESSED;
+				pub_key.key.eckey.qx = &data[1];
+				pub_key.key.eckey.qy = &data[1 + sx_pk_curve_opsize(sx_curve)];
+				break;
 			} else {
-				priv_key.def = si_sig_def_x448;
-				priv_key.key.x448 = (struct sx_x448_op *)key_buffer;
-				pub_key.key.x448 = (struct sx_x448_pt *)data;
+				return PSA_ERROR_NOT_SUPPORTED;
 			}
-			break;
-		case PSA_ECC_FAMILY_TWISTED_EDWARDS:
-			if (key_bits_attr == 255) {
-				si_status = cracen_ed25519_create_pubkey(key_buffer, data);
-				if (si_status == SX_OK) {
-					*data_length = expected_pub_key_size;
+		case PSA_ECC_FAMILY_MONTGOMERY:
+			if (IS_ENABLED(PSA_NEED_CRACEN_KEY_TYPE_ECC_MONTGOMERY_255)) {
+				if (key_bits_attr == 255) {
+					priv_key.def = si_sig_def_x25519;
+					priv_key.key.x25519 = (struct sx_x25519_op *)key_buffer;
+					pub_key.key.x25519 = (struct sx_x25519_pt *)data;
+					break;
 				}
-				return silex_statuscodes_to_psa(si_status);
-			} else {
-				priv_key.def = si_sig_def_ed448;
-				priv_key.key.ed448 = (struct sx_ed448_v *)key_buffer;
-				pub_key.key.ed448 = (struct sx_ed448_pt *)data;
+			}
+			if (IS_ENABLED(PSA_NEED_CRACEN_KEY_TYPE_ECC_MONTGOMERY_448)) {
+				if (key_bits_attr == 448) {
+					priv_key.def = si_sig_def_x448;
+					priv_key.key.x448 = (struct sx_x448_op *)key_buffer;
+					pub_key.key.x448 = (struct sx_x448_pt *)data;
+					break;
+				}
+			}
+			return PSA_ERROR_NOT_SUPPORTED;
+		case PSA_ECC_FAMILY_TWISTED_EDWARDS:
+			if (IS_ENABLED(PSA_NEED_CRACEN_PURE_EDDSA_TWISTED_EDWARDS_255)) {
+				if (key_bits_attr == 255) {
+					si_status = cracen_ed25519_create_pubkey(key_buffer, data);
+					if (si_status == SX_OK) {
+						*data_length = expected_pub_key_size;
+					}
+					return silex_statuscodes_to_psa(si_status);
+				}
+			}
+			if (IS_ENABLED(PSA_NEED_CRACEN_PURE_EDDSA_TWISTED_EDWARDS_448)) {
+				if (key_bits_attr == 255) {
+					priv_key.def = si_sig_def_ed448;
+					priv_key.key.ed448 = (struct sx_ed448_v *)key_buffer;
+					pub_key.key.ed448 = (struct sx_ed448_pt *)data;
+				}
 			}
 			break;
 		default:
 			return PSA_ERROR_NOT_SUPPORTED;
-		}
+			}
 	}
 
 	si_task_init(&t, workmem, sizeof(workmem));
@@ -1297,44 +1315,24 @@ psa_status_t cracen_export_key(const psa_key_attributes_t *attributes, const uin
 			       size_t *data_length)
 {
 #ifdef CONFIG_PSA_NEED_CRACEN_KMU_DRIVER
-	int status;
 	psa_key_location_t location =
 		PSA_KEY_LIFETIME_GET_LOCATION(psa_get_key_lifetime(attributes));
-
+	/* The keys will already be in the key buffer as they got loaded their by a previous
+	* call to cracen_get_builtin_key or cached in the memory.
+	*/
 	if (location == PSA_KEY_LOCATION_CRACEN_KMU) {
-		/* The keys will already be in the key buffer as they got loaded their by a previous
-		 * call to cracen_get_builtin_key or cached in the memory.
-		 */
-		psa_ecc_family_t ecc_fam =
-			PSA_KEY_TYPE_ECC_GET_FAMILY(psa_get_key_type(attributes));
-		if (ecc_fam == PSA_ECC_FAMILY_TWISTED_EDWARDS ||
-		    ecc_fam == PSA_ECC_FAMILY_SECP_R1) {
-			memcpy(data, key_buffer, key_buffer_size);
-			*data_length = key_buffer_size;
-			return PSA_SUCCESS;
-		}
-
+		nrf_security_mutex_lock(cracen_mutex_symmetric);
 		size_t key_out_size = PSA_BITS_TO_BYTES(psa_get_key_bits(attributes));
-
 		if (key_out_size > data_size) {
 			return PSA_ERROR_BUFFER_TOO_SMALL;
 		}
 
-		/* The kmu_push_area is guarded by the symmetric mutex since it is the most common
-		 * use case. Here the decision was to avoid defining another mutex to handle the
-		 * push buffer for the rest of the use cases.
-		 */
-		nrf_security_mutex_lock(cracen_mutex_symmetric);
-		status = cracen_kmu_prepare_key(key_buffer);
-		if (status == SX_OK) {
-			memcpy(data, kmu_push_area, key_out_size);
-			*data_length = key_out_size;
-		}
-
+		memcpy(data, key_buffer, key_buffer_size);
+		*data_length = key_out_size;
 		(void)cracen_kmu_clean_key(key_buffer);
 		nrf_security_mutex_unlock(cracen_mutex_symmetric);
 
-		return silex_statuscodes_to_psa(status);
+		return PSA_SUCCESS;
 	}
 #endif
 
