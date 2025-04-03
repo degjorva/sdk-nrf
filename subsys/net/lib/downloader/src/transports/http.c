@@ -19,7 +19,11 @@
 
 LOG_MODULE_DECLARE(downloader, CONFIG_DOWNLOADER_LOG_LEVEL);
 
-/* nRF91 modem TLS secure socket buffer limited to 2kB including header */
+/* In the nRF91 Series modem, the TLS secure socket buffer is limited to around 2 kB.
+ * If the header and data is too large, the downloader will reduce the range requests until
+ * the requirements are satisfied. The application can also set the range_override in
+ * struct downloader_host_cfg to utilize the size better.
+ */
 #define TLS_RANGE_MAX 2048
 
 #define DEFAULT_PORT_TLS 443
@@ -95,6 +99,8 @@ struct transport_params_http {
 
 	/** Request new data */
 	bool new_data_req;
+	/** Redirect retries */
+	uint8_t redirects;
 };
 
 BUILD_ASSERT(CONFIG_DOWNLOADER_TRANSPORT_PARAMS_SIZE >= sizeof(struct transport_params_http));
@@ -128,6 +134,8 @@ static char *strnstr(const char *haystack, const char *needle, size_t haystack_l
 extern char *strnstr(const char *haystack, const char *needle, size_t haystack_sz);
 #endif
 
+static int parse_protocol(struct downloader *dl, const char *url);
+
 static int http_get_request_send(struct downloader *dl)
 {
 	int err;
@@ -143,22 +151,21 @@ static int http_get_request_send(struct downloader *dl)
 	/* nRF91 series has a limitation of decoding ~2k of data at once when using TLS */
 	tls_force_range = (http->sock.proto == IPPROTO_TLS_1_2 && !dl->host_cfg.set_native_tls &&
 			   IS_ENABLED(CONFIG_SOC_SERIES_NRF91X));
-
-	if (dl->host_cfg.range_override) {
-		if (tls_force_range && dl->host_cfg.range_override > (TLS_RANGE_MAX - 1)) {
+	if (tls_force_range) {
+		if (dl->host_cfg.range_override > TLS_RANGE_MAX) {
 			LOG_WRN("Range override > TLS max range, setting to TLS max range");
-			dl->host_cfg.range_override = (TLS_RANGE_MAX - 1);
+			dl->host_cfg.range_override = TLS_RANGE_MAX;
+		} else if (dl->host_cfg.range_override == 0) {
+			dl->host_cfg.range_override = TLS_RANGE_MAX;
 		}
-	} else if (tls_force_range) {
-		dl->host_cfg.range_override = TLS_RANGE_MAX - 1;
 	}
 
 	if (dl->host_cfg.range_override) {
-		off = dl->progress + dl->host_cfg.range_override;
+		off = dl->progress + dl->host_cfg.range_override - 1;
 
-		if (dl->file_size && (off > dl->file_size - 1)) {
+		if (dl->file_size) {
 			/* Don't request bytes past the end of file */
-			off = dl->file_size - 1;
+			off = MIN(off, dl->file_size - 1);
 		}
 
 		len = snprintf(dl->cfg.buf, dl->cfg.buf_size, HTTP_GET_RANGE, dl->file,
@@ -215,7 +222,7 @@ static int http_header_parse(struct downloader *dl, size_t buf_len)
 
 	LOG_DBG("(partial) http header response:\n%s", dl->cfg.buf);
 
-	p = strnstr(dl->cfg.buf, "\r\n\r\n", dl->cfg.buf_size);
+	p = strnstr(dl->cfg.buf, "\r\n\r\n", buf_len);
 	if (p) {
 		/* End of header received */
 		http->header.has_end = true;
@@ -224,7 +231,19 @@ static int http_header_parse(struct downloader *dl, size_t buf_len)
 		parse_len = buf_len;
 	}
 
+	/* Convert HTTP headers to lowercase, but not the values (for example URI) */
+	bool value = false;
 	for (size_t i = 0; i < parse_len; i++) {
+		if (dl->cfg.buf[i] == '\r' || dl->cfg.buf[i] == '\n') {
+			value = false;
+		}
+		if (value) {
+			continue;
+		}
+		if (dl->cfg.buf[i] == ':') {
+			value = true;
+			continue;
+		}
 		dl->cfg.buf[i] = tolower(dl->cfg.buf[i]);
 	}
 
@@ -251,10 +270,16 @@ static int http_header_parse(struct downloader *dl, size_t buf_len)
 			if (q) {
 
 				/* Received entire line */
-				p += strlen("\r\nlocation:");
+				p += strlen("\r\nlocation: ");
 				*q = '\0';
 
 				LOG_INF("Resource moved to %s", p);
+
+				err = parse_protocol(dl, p);
+				if (err) {
+					LOG_ERR("Failed to parse protocol, err %d, url %s", err, p);
+					return -EBADMSG;
+				}
 
 				err = dl_parse_url_host(p, dl->hostname, sizeof(dl->hostname));
 				if (err) {
@@ -267,6 +292,13 @@ static int http_header_parse(struct downloader *dl, size_t buf_len)
 					LOG_ERR("Failed to parse filename, err %d, url %s", err, p);
 					k_mutex_unlock(&dl->mutex);
 					return -EBADMSG;
+				}
+
+				http->redirects++;
+
+				if (http->redirects > dl->host_cfg.redirects_max) {
+					LOG_ERR("Maximum redirections reached, aborting");
+					return -EMLINK;
 				}
 
 				return -ECONNRESET;
@@ -407,64 +439,56 @@ static int http_parse(struct downloader *dl, size_t len)
 		}
 	}
 
-	/* Have we received a whole fragment or the whole file? */
-	if (dl->progress + len != dl->file_size) {
-		if (http->ranged) {
-			http->ranged_progress += len;
-			if (http->ranged_progress < (dl->host_cfg.range_override
-							     ? dl->host_cfg.range_override
-							     : TLS_RANGE_MAX - 1)) {
-				/* Ranged query: read until a full fragment */
-				return len;
-			}
+	if (dl->progress + len == dl->file_size) {
+		/* A full file has been received */
+		http->new_data_req = true;
+		return len;
+	}
+
+	if (http->ranged) {
+		http->ranged_progress += len;
+		if (http->ranged_progress < dl->host_cfg.range_override) {
+			/* Ranged query: read until a full fragment is received */
 		} else {
-			/* Non-ranged query: just keep on reading, ignore fragment size */
-			return len;
+			/* Ranged query: request next fragment */
+			http->new_data_req = true;
 		}
 	}
 
-	/* Either we have a full file, or we need to request a next fragment */
-	http->new_data_req = true;
 	return len;
 }
 
 static bool dl_http_proto_supported(struct downloader *dl, const char *url)
 {
-	if (strncmp(url, HTTPS, strlen(HTTPS)) == 0) {
+	if (strncmp(url, HTTPS, (sizeof(HTTPS) - 1)) == 0) {
 		return true;
 	}
 
-	if (strncmp(url, HTTP, strlen(HTTP)) == 0) {
+	if (strncmp(url, HTTP, (sizeof(HTTP) - 1)) == 0) {
 		return true;
 	}
 
 	return false;
 }
 
-static int dl_http_init(struct downloader *dl, struct downloader_host_cfg *dl_host_cfg,
-			const char *url)
+static int parse_protocol(struct downloader *dl, const char *url)
 {
 	int err;
 	struct transport_params_http *http;
 
 	http = (struct transport_params_http *)dl->transport_internal;
 
-	/* Reset http internal struct except config. */
-	struct downloader_transport_http_cfg tmp_cfg = http->cfg;
-
-	memset(http, 0, sizeof(struct transport_params_http));
-	http->cfg = tmp_cfg;
 
 	http->sock.proto = IPPROTO_TCP;
 	http->sock.type = SOCK_STREAM;
 
-	if (strncmp(url, HTTPS, strlen(HTTPS)) == 0 ||
-	    (strncmp(url, HTTP, strlen(HTTP)) != 0 &&
-	     (dl_host_cfg->sec_tag_count != 0 && dl_host_cfg->sec_tag_list != NULL))) {
+	if (strncmp(url, HTTPS, (sizeof(HTTPS) - 1)) == 0 ||
+	    (strncmp(url, HTTP, (sizeof(HTTP) - 1)) != 0 &&
+	     (dl->host_cfg.sec_tag_count != 0 && dl->host_cfg.sec_tag_list != NULL))) {
 		http->sock.proto = IPPROTO_TLS_1_2;
 		http->sock.type = SOCK_STREAM;
 
-		if (dl_host_cfg->sec_tag_list == NULL || dl_host_cfg->sec_tag_count == 0) {
+		if (dl->host_cfg.sec_tag_list == NULL || dl->host_cfg.sec_tag_count == 0) {
 			LOG_WRN("No security tag provided for TLS/DTLS");
 			return -EINVAL;
 		}
@@ -483,12 +507,28 @@ static int dl_http_init(struct downloader *dl, struct downloader_host_cfg *dl_ho
 		LOG_DBG("Port not specified, using default: %d", http->sock.port);
 	}
 
-	if (dl_host_cfg->set_native_tls) {
+	if (dl->host_cfg.set_native_tls) {
 		LOG_DBG("Enabled native TLS");
 		http->sock.type |= SOCK_NATIVE_TLS;
 	}
 
 	return 0;
+}
+
+static int dl_http_init(struct downloader *dl, struct downloader_host_cfg *dl_host_cfg,
+			const char *url)
+{
+	struct transport_params_http *http;
+
+	http = (struct transport_params_http *)dl->transport_internal;
+
+	/* Reset http internal struct except config. */
+	struct downloader_transport_http_cfg tmp_cfg = http->cfg;
+
+	memset(http, 0, sizeof(struct transport_params_http));
+	http->cfg = tmp_cfg;
+
+	return parse_protocol(dl, url);
 }
 
 static int dl_http_deinit(struct downloader *dl)
@@ -580,6 +620,19 @@ static int dl_http_download(struct downloader *dl)
 			     dl->cfg.buf_size - dl->buf_offset);
 
 	if (len < 0) {
+		if (len == -EMSGSIZE && dl->host_cfg.range_override) {
+			/* We do not have enough space for the http header and requested data,
+			 * reattempt with shorter range request.
+			 */
+			dl->host_cfg.range_override -=
+				((dl->host_cfg.range_override > 256) ? 128 : 8);
+			if (dl->host_cfg.range_override <= 8) {
+				return -EMSGSIZE;
+			}
+			LOG_DBG("Message size too big, reattempting with range size %d",
+				dl->host_cfg.range_override);
+			return -ECONNRESET;
+		}
 		if (http->connection_close) {
 			return -ECONNRESET;
 		}
@@ -591,7 +644,7 @@ static int dl_http_download(struct downloader *dl)
 		return -ECONNRESET;
 	}
 
-	ret = http_parse(dl, len);
+	ret = http_parse(dl, len + dl->buf_offset);
 	if (ret <= 0) {
 		return ret;
 	}

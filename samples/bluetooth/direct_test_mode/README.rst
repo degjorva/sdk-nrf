@@ -8,6 +8,8 @@ Bluetooth: Direct Test Mode
    :depth: 2
 
 This sample enables the Direct Test Mode functions described in `Bluetooth® Core Specification <Bluetooth Core Specification_>`_ (Vol. 6, Part F).
+The actual encoding of the test commands and events are described in sections 3.3 and 3.4, respectively, of Vol. 6, Part F of this specification document.
+The `Vendor-specific packet payload`_ section describes some vendor-specific commands that comply with the core specification.
 
 Requirements
 ************
@@ -248,12 +250,15 @@ The following table presents the patterns that you can use to switch antennas on
 | RFU    | 15 (0b1111)  |
 +--------+--------------+
 
-nRF21540 front-end module
-=========================
+Front-end module
+================
 
 .. include:: /includes/sample_dtm_radio_test_fem.txt
 
-You can configure the transmitted power gain, antenna output and activation delay in nRF21540 using vendor-specific commands, see `Vendor-specific packet payload`_.
+You can configure the transmitted power gain, antenna output, and activation delay in FEMs using vendor-specific commands, see `Vendor-specific packet payload`_.
+
+.. note::
+   Each front-end module (FEM) has different capabilities and operating modes, so some commands may not be supported by a specific FEM and those supported may work differently on different FEMs.
 
 Skyworks front-end module
 =========================
@@ -324,8 +329,8 @@ The :file:`dtm_uart_twowire.c` file is an implementation of the UART interface s
 The :file:`dtm_hci.c` and :file:`hci_uart.c` files are an implementation of the HCI UART interface specified in the `Bluetooth Core Specification`_, Volume 4, Part A (the flow control can be configured by an overlay file).
 
 The default selection of UART pins is defined in :file:`zephyr/boards/arm/board_name/board_name.dts`.
-You can change the defaults using the symbols ``tx-pin`` and ``rx-pin`` in the DTS overlay file of the child image at the project level.
-The configuration files for the :ref:`nrf5340_remote_shell` subimage are located in the :file:`child_image/remote_shell` or :file:`sysbuild/remote_shell` directory.
+You can change the defaults using the symbols ``tx-pin`` and ``rx-pin`` in the DTS overlay file of the image at the project level.
+The configuration files for the :ref:`nrf5340_remote_shell` subimage are located in the :file:`sysbuild/remote_shell` directory.
 The HCI interface allows for a custom ``remote_hci`` image to be used with |nRF5340DKnoref|.
 
 .. note::

@@ -102,6 +102,7 @@ static void *suite_setup(void)
 
 	}
 
+#if defined CONFIG_CHECK_PULLS
 	for (i = 0; i < npairs; i++) {
 		rc = gpio_pin_configure_dt(&in_pins[i], GPIO_INPUT | GPIO_PULL_UP);
 		zassert_equal(rc, 0, "IN[%d] config failed", i);
@@ -115,6 +116,7 @@ static void *suite_setup(void)
 	}
 	_check_inputs(0b00000000000000000000000000000000);
 	TC_PRINT("Input pull down works.\n");
+#endif
 
 	for (i = 0; i < npairs; i++) {
 		rc = gpio_pin_configure_dt(&in_pins[i], GPIO_INPUT);

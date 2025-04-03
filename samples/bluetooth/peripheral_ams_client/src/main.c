@@ -437,7 +437,7 @@ int main(void)
 	int blink_status = 0;
 	int err;
 
-	printk("Starting Apple Media Service client example\n");
+	printk("Starting Apple Media Service client sample\n");
 
 	err = bt_ams_client_init(&ams_c);
 	if (err) {
@@ -479,7 +479,7 @@ int main(void)
 		return 0;
 	}
 
-	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
+	err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_2, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 	if (err) {
 		printk("Advertising failed to start (err %d)\n", err);
 		return 0;

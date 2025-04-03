@@ -28,7 +28,7 @@
 #include "bt_throughput_test.h"
 
 #define CONN_LATENCY 0
-#define SUPERVISION_TIMEOUT 1000
+#define SUPERVISION_TIMEOUT MIN(CONFIG_BLE_TEST_DURATION, 32000)
 
 #define DEVICE_NAME	CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
@@ -262,8 +262,7 @@ static void scan_start(void)
 static void adv_start(void)
 {
 	const struct bt_le_adv_param *adv_param =
-		BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE |
-				BT_LE_ADV_OPT_ONE_TIME,
+		BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN,
 				BT_GAP_ADV_FAST_INT_MIN_2,
 				BT_GAP_ADV_FAST_INT_MAX_2,
 				NULL);

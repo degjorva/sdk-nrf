@@ -76,6 +76,8 @@ nRF70 Series
        For example, ``CONFIG_WPA_SUPP=y`` to ``CONFIG_WIFI_NM_WPA_SUPPLICANT=y``.
        Update your application configurations to use the new namespace.
 
+     * You need to reconcile the application heap and kernel heap usage appropriately to accommodate this switch from application to kernel heap.
+
    * The SR co-existence feature should now be explicitly enabled using the :kconfig:option:`CONFIG_NRF70_SR_COEX` Kconfig option.
      The RF switch feature should be enabled using the :kconfig:option:`CONFIG_NRF70_SR_COEX_RF_SWITCH` Kconfig option.
 
@@ -153,8 +155,8 @@ nRF54H20 SoC binaries
 
     1. Download the nRF54H20 SoC binaries v0.7.0:
 
-       * `nRF54H20 SoC Binaries v0.7.0 for EngC DKs`_, compatible with the nRF54H20 DK v0.8.3 and later revisions
-       * `nRF54H20 SoC Binaries v0.7.0 for EngB DKs`_, compatible with the nRF54H20 DKs ranging from v0.8.0 to v0.8.2.
+       * `nRF54H20 SoC binaries v0.7.0 for EngC DKs`_, compatible with the nRF54H20 DK v0.8.3 and later revisions
+       * `nRF54H20 SoC binaries v0.7.0 for EngB DKs`_, compatible with the nRF54H20 DKs ranging from v0.8.0 to v0.8.2.
 
        .. note::
           On MacOS, ensure that the ZIP file is not unpacked automatically upon download.

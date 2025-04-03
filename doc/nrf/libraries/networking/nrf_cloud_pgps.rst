@@ -38,7 +38,7 @@ With A-GNSS, new ephemerides are needed on average every two hours, or if the fi
 Configuration
 *************
 
-Configure the :kconfig:option:`CONFIG_NRF_CLOUD_PGPS` Kconfig option to enable or disable the use of this library.
+To enable this library, set the :kconfig:option:`CONFIG_NRF_CLOUD` and :kconfig:option:`CONFIG_NRF_CLOUD_PGPS` Kconfig options.
 
 Configure one of the following options to control the network transport for P-GPS requests and responses:
 
@@ -233,7 +233,7 @@ The library offers two different ways to control the timing of P-GPS cloud reque
    * Call :c:func:`nrf_cloud_pgps_preemptive_updates`.
    * Call :c:func:`nrf_cloud_pgps_notify_prediction`.
 
-The indirect methods are used in the :ref:`asset_tracker_v2` and the :ref:`serial_lte_modem` applications.
+The indirect methods are used in the :ref:`serial_lte_modem` application.
 They are simpler to use than the direct methods.
 The direct method is used in the :ref:`gnss_sample` sample.
 
@@ -249,7 +249,7 @@ A P-GPS prediction for the current date and time can be retrieved using one of t
 * Directly, by calling the function :c:func:`nrf_cloud_pgps_find_prediction`
 * Indirectly, by calling the function :c:func:`nrf_cloud_pgps_notify_prediction`
 
-The indirect method is used in the :ref:`gnss_sample` sample and in the :ref:`asset_tracker_v2` and :ref:`serial_lte_modem` applications.
+The indirect method is used in the :ref:`gnss_sample` sample and in the :ref:`serial_lte_modem` application.
 
 The application can inject the data contained in the prediction to the GNSS module in the modem by calling the :c:func:`nrf_cloud_pgps_inject` function.
 This must be done when event :c:enumerator:`NRF_MODEM_GNSS_EVT_AGNSS_REQ` is received from the GNSS interface.

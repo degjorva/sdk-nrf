@@ -18,8 +18,6 @@ The sample supports the following development kits:
 
 .. table-from-sample-yaml::
 
-.. include:: /includes/hci_ipc_overlay.txt
-
 Optionally, you can use the `Power Profiler Kit II (PPK2)`_ for power profiling and optimizing your configuration.
 You can use also your proprietary solution for measuring the power consumption.
 
@@ -232,6 +230,11 @@ Building and running
 .. |sample path| replace:: :file:`samples/bluetooth/peripheral_power_profiling`
 
 .. include:: /includes/build_and_run.txt
+
+.. |sample_or_app| replace:: sample
+.. |ipc_radio_dir| replace:: :file:`sysbuild/ipc_radio`
+
+.. include:: /includes/ipc_radio_conf.txt
 
 Testing
 =======

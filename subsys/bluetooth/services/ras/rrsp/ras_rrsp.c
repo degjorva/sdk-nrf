@@ -477,7 +477,7 @@ static void ondemand_rd_indicate_sent_cb(struct bt_conn *conn,
 static int ondemand_rd_notify_or_indicate(struct bt_conn *conn, struct net_buf_simple *buf)
 {
 	struct bt_gatt_attr *attr =
-		bt_gatt_find_by_uuid(rrsp_svc.attrs, 1, BT_UUID_RAS_ONDEMAND_RD);
+		bt_gatt_find_by_uuid(rrsp_svc.attrs, 0, BT_UUID_RAS_ONDEMAND_RD);
 
 	__ASSERT_NO_MSG(attr);
 
@@ -512,7 +512,7 @@ static int ondemand_rd_notify_or_indicate(struct bt_conn *conn, struct net_buf_s
 
 static int rascp_indicate(struct bt_conn *conn, struct net_buf_simple *rsp)
 {
-	struct bt_gatt_attr *attr = bt_gatt_find_by_uuid(rrsp_svc.attrs, 1, BT_UUID_RAS_CP);
+	struct bt_gatt_attr *attr = bt_gatt_find_by_uuid(rrsp_svc.attrs, 0, BT_UUID_RAS_CP);
 
 	__ASSERT_NO_MSG(attr);
 
@@ -538,13 +538,11 @@ static int rascp_indicate(struct bt_conn *conn, struct net_buf_simple *rsp)
 static int rd_status_notify_or_indicate(struct bt_conn *conn, const struct bt_uuid *uuid,
 					uint16_t ranging_counter)
 {
-	struct bt_gatt_attr *attr = bt_gatt_find_by_uuid(rrsp_svc.attrs, 1, uuid);
+	struct bt_gatt_attr *attr = bt_gatt_find_by_uuid(rrsp_svc.attrs, 0, uuid);
 
 	__ASSERT_NO_MSG(attr);
 
-	if (bt_gatt_is_subscribed(conn, attr, BT_GATT_CCC_NOTIFY)) {
-		return bt_gatt_notify(conn, attr, &ranging_counter, sizeof(ranging_counter));
-	} else if (bt_gatt_is_subscribed(conn, attr, BT_GATT_CCC_INDICATE)) {
+	if (bt_gatt_is_subscribed(conn, attr, BT_GATT_CCC_INDICATE)) {
 		struct bt_ras_rrsp *rrsp = rrsp_find(conn);
 
 		__ASSERT_NO_MSG(rrsp);
@@ -557,6 +555,8 @@ static int rd_status_notify_or_indicate(struct bt_conn *conn, const struct bt_uu
 		rrsp->rd_status_params.destroy = NULL;
 
 		return bt_gatt_indicate(conn, &rrsp->rd_status_params);
+	} else if (bt_gatt_is_subscribed(conn, attr, BT_GATT_CCC_NOTIFY)) {
+		return bt_gatt_notify(conn, attr, &ranging_counter, sizeof(ranging_counter));
 	}
 
 	LOG_WRN("Peer is not subscribed to status characteristic.");
@@ -617,7 +617,7 @@ static void rascp_cmd_handle(struct bt_ras_rrsp *rrsp)
 		LOG_DBG("GET_RD %d", ranging_counter);
 
 		struct bt_gatt_attr *attr =
-			bt_gatt_find_by_uuid(rrsp_svc.attrs, 1, BT_UUID_RAS_ONDEMAND_RD);
+			bt_gatt_find_by_uuid(rrsp_svc.attrs, 0, BT_UUID_RAS_ONDEMAND_RD);
 
 		__ASSERT_NO_MSG(attr);
 

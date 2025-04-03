@@ -8,12 +8,7 @@
 #include <suit_platform.h>
 #include <suit_memptr_storage.h>
 #include <suit_platform_internal.h>
-#include <suit_plat_ipuc.h>
 #include <suit_dfu_cache.h>
-#include <mocks_sdfw.h>
-
-#define TEST_DATA_SIZE 64
-#define WRITE_ADDR     0x1A00080000
 
 static uint8_t test_data[] = {0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
 			      16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
@@ -57,9 +52,21 @@ static const uint8_t cache2[] = {
 	0x90, 0x70, 0x18, 0x92, 0x36, 0x51, 0x92, 0x83, 0x09, 0x86, 0x70, 0x19, 0x23};
 static const size_t cache2_len = sizeof(cache2);
 
+/* clang-format off */
+static const uint8_t valid_manifest_component[] = {
+	0x82, /* array: 2 elements */
+		0x4c, /* byte string: 12 bytes */
+			0x6b, /* string: 11 characters */
+				'I', 'N', 'S', 'T', 'L', 'D', '_', 'M', 'F', 'S', 'T',
+		0x50, /* byte string: 16 bytes */
+			0x5b, 0x46, 0x9f, 0xd1, 0x90, 0xee, 0x53, 0x9c,
+			0xa3, 0x18, 0x68, 0x1b, 0x03, 0x69, 0x5e, 0x36
+};
+/* clang-format on */
+
 static struct zcbor_string valid_manifest_component_id = {
-	.value = (const uint8_t *)0x1234,
-	.len = 123,
+	.value = valid_manifest_component,
+	.len = sizeof(valid_manifest_component),
 };
 
 static void setup_cache_with_sample_entries(void)
@@ -76,57 +83,14 @@ static void setup_cache_with_sample_entries(void)
 	dfu_caches.pools[1].size = (size_t)cache2_len;
 	dfu_caches.pools_count = 2;
 
+	suit_dfu_cache_deinitialize();
+
 	suit_plat_err_t rc = suit_dfu_cache_initialize(&dfu_caches);
 
 	zassert_equal(rc, SUIT_PLAT_SUCCESS, "Failed to initialize cache: %i", rc);
 }
 
-static void test_before(void *data)
-{
-	/* Reset mocks */
-	mocks_sdfw_reset();
-
-	/* Reset common FFF internal structures */
-	FFF_RESET_HISTORY();
-}
-
-ZTEST_SUITE(fetch_tests, NULL, NULL, test_before, NULL, NULL);
-
-ZTEST(fetch_tests, test_integrated_fetch_to_msink_OK)
-{
-	struct zcbor_string source = {.value = test_data, .len = sizeof(test_data)};
-	/* Create handle that will be used as destination */
-	suit_component_t dst_handle;
-	/* [h'MEM', h'02', h'1A00080000', h'191000'] */
-	uint8_t valid_dst_value[] = {0x84, 0x44, 0x63, 'M',  'E',  'M',	 0x41, 0x02, 0x45,
-				     0x1A, 0x00, 0x08, 0x00, 0x00, 0x43, 0x19, 0x10, 0x00};
-
-	struct zcbor_string valid_dst_component_id = {
-		.value = valid_dst_value,
-		.len = sizeof(valid_dst_value),
-	};
-
-	int ret = suit_plat_create_component_handle(&valid_dst_component_id, false, &dst_handle);
-
-	zassert_equal(ret, SUIT_SUCCESS, "create_component_handle failed - error %i", ret);
-	ret = suit_plat_ipuc_write(dst_handle, 0, (uintptr_t)test_data, sizeof(test_data), true);
-	zassert_equal(ret, SUIT_PLAT_ERR_NOT_FOUND, "in-place updateable component found");
-
-	ret = suit_plat_ipuc_declare(dst_handle);
-	zassert_equal(ret, SUIT_PLAT_SUCCESS, "suit_plat_ipuc_declare failed - error %i", ret);
-
-	ret = suit_plat_ipuc_write(dst_handle, 0, (uintptr_t)test_data, sizeof(test_data), true);
-	zassert_equal(ret, SUIT_PLAT_SUCCESS, "cannot write to in-place updateable component");
-
-	ret = suit_plat_fetch_integrated(dst_handle, &source, &valid_dst_component_id, NULL);
-	zassert_equal(ret, SUIT_SUCCESS, "suit_plat_fetch failed - error %i", ret);
-
-	ret = suit_plat_ipuc_write(dst_handle, 0, (uintptr_t)test_data, sizeof(test_data), true);
-	zassert_equal(ret, SUIT_PLAT_ERR_NOT_FOUND, "in-place updateable component found");
-
-	ret = suit_plat_release_component_handle(dst_handle);
-	zassert_equal(ret, SUIT_SUCCESS, "dst_handle release failed - error %i", ret);
-}
+ZTEST_SUITE(fetch_tests, NULL, NULL, NULL, NULL, NULL);
 
 ZTEST(fetch_tests, test_integrated_fetch_to_memptr_OK)
 {
@@ -219,8 +183,8 @@ ZTEST(fetch_tests, test_fetch_to_memptr_NOK_uri_not_in_cache)
 
 	ret = suit_plat_fetch(component_handle, &uri, &valid_manifest_component_id, NULL);
 	zassert_equal(ret, SUIT_SUCCESS,
-			  "suit_plat_fetch should succeed - supplied uri is not in cache, "
-			  "treated as empty payload");
+		      "suit_plat_fetch should succeed - supplied uri is not in cache, "
+		      "treated as empty payload");
 
 	ret = suit_plat_release_component_handle(component_handle);
 	zassert_equal(ret, SUIT_SUCCESS, "Handle release failed - error %i", ret);

@@ -1,7 +1,7 @@
 .. _programming_thingy:
 
-Updating the Thingy:91 firmware using Programmer
-################################################
+Updating the Thingy:91 firmware using the Programmer app
+########################################################
 
 .. contents::
    :local:
@@ -39,11 +39,10 @@ Modem firmware
 
 The :file:`CONTENTS.txt` file in the extracted folder contains the location and names of the different firmware images.
 
-The instructions in this section show you how to program the :ref:`connectivity_bridge` and :ref:`asset_tracker_v2` applications, as well as the modem firmware.
-Connectivity bridge provides bridge functionality for the hardware, and Asset Tracker v2 simulates sensor data and transmits it to Nordic Semiconductor's cloud solution, `nRF Cloud`_.
+The instructions in this section show you how to program the :ref:`connectivity_bridge` application and the :ref:`at_client_sample` sample, as well as the modem firmware.
 
 The data is transmitted using either LTE-M or NB-IoT.
-Asset Tracker v2 first attempts to use LTE-M, then NB-IoT.
+The :ref:`at_client_sample` sample first attempts to use LTE-M, then NB-IoT.
 Check with your SIM card provider for the mode they support at your location.
 For the iBasis SIM card provided with the Thingy:91, see `iBasis IoT network coverage`_.
 
@@ -81,8 +80,9 @@ Updating the firmware in the nRF52840 SoC
       #. Switch off the Thingy:91.
       #. Press **SW4** while switching **SW1** to the **ON** position.
 
-         .. figure:: images/thingy91_sw1_sw4.svg
+         .. figure:: images/thingy91_sw1_sw4.webp
             :alt: thingy91_sw1_sw4
+            :width: 515px
 
             Thingy:91 - SW1 SW4 switch
 
@@ -146,8 +146,9 @@ Updating the firmware in the nRF52840 SoC
 
          a. Connect the Thingy:91 to the debug out port on a 10-pin external debug probe using a JTAG cable.
 
-            .. figure:: images/programmer_thingy91_connect_dk_swd_vddio.svg
+            .. figure:: images/programmer_thingy91_connect_dk_swd_vddio.webp
                :alt: Thingy:91 - Connecting the external debug probe
+               :width: 626px
 
                Thingy:91 - Connecting the external debug probe
 
@@ -222,8 +223,9 @@ Update the modem firmware on the nRF9160 SiP
       #. Switch off the Thingy:91.
       #. Press **SW3** while switching **SW1** to the **ON** position.
 
-         .. figure:: images/thingy91_sw1_sw3.svg
+         .. figure:: images/thingy91_sw1_sw3.webp
             :alt: Thingy:91 - SW1 SW3 switch
+            :width: 483px
 
             Thingy:91 - SW1 SW3 switch
 
@@ -319,8 +321,9 @@ Program the nRF9160 SiP application
       #. Switch off the Thingy:91.
       #. Press **SW3** while switching **SW1** to the **ON** position.
 
-         .. figure:: images/thingy91_sw1_sw3.svg
+         .. figure:: images/thingy91_sw1_sw3.webp
             :alt: Thingy:91 - SW1 SW3 switch
+            :width: 483px
 
             Thingy:91 - SW1 SW3 switch
 
@@ -347,11 +350,7 @@ Program the nRF9160 SiP application
       #. Open the folder :file:`img_fota_dfu_hex` that contains the HEX files for updating over USB.
          See the :file:`CONTENTS.txt` file for information on which file you need.
 
-      #. Select the appropriate Asset Tracker v2 firmware file.
-
-         .. note::
-
-            If you are connecting over NB-IoT and your operator does not support extended Protocol Configuration Options (ePCO), select the file that has legacy Protocol Configuration Options (PCO) mode enabled.
+      #. Select the appropriate AT Client firmware file.
 
       #. Click :guilabel:`Open`.
 
@@ -393,11 +392,7 @@ Program the nRF9160 SiP application
       #. Open the folder :file:`img_app_bl` that contains the HEX files for updating using a debugger.
          See the :file:`CONTENTS.txt` file for information on which file you need.
 
-      #. Select the appropriate Asset Tracker v2 firmware file.
-
-         .. note::
-
-            If you are connecting over NB-IoT and your operator does not support extended Protocol Configuration Options (ePCO), select the file that has legacy Protocol Configuration Options (PCO) mode enabled.
+      #. Select the appropriate AT Client firmware file.
 
       #. Click :guilabel:`Open`.
       #. Scroll down in the menu on the left to the **DEVICE** section and click :guilabel:`Erase & write`.

@@ -23,7 +23,8 @@ cmock_handle(${ZEPHYR_NRF_MODULE_DIR}/include/modem/lte_lc.h
 	WORD_EXCLUDE "__deprecated")
 cmock_handle(${ZEPHYR_NRF_MODULE_DIR}/include/modem/modem_key_mgmt.h)
 cmock_handle(${ZEPHYR_NRF_MODULE_DIR}/include/modem/modem_attest_token.h)
-cmock_handle(${ZEPHYR_NRF_MODULE_DIR}/include/modem/modem_info.h)
+cmock_handle(${ZEPHYR_NRF_MODULE_DIR}/include/modem/modem_info.h
+	WORD_EXCLUDE "__deprecated")
 cmock_handle(${ZEPHYR_NRF_MODULE_DIR}/include/modem/nrf_modem_lib.h)
 cmock_handle(${ZEPHYR_BASE}/include/zephyr/settings/settings.h)
 cmock_handle(${ZEPHYR_NRF_MODULE_DIR}/subsys/net/lib/nrf_provisioning/include/nrf_provisioning_at.h)
@@ -42,7 +43,6 @@ elseif(CONFIG_NRF_PROVISIONING_COAP)
     -DCONFIG_COAP_CLIENT_MESSAGE_HEADER_SIZE=48
     -DCONFIG_COAP_CLIENT_MESSAGE_SIZE=512
     -DCONFIG_COAP_CLIENT_STACK_SIZE=1024
-    -DCONFIG_NET_SOCKETS_POSIX_NAMES=y
     -DCONFIG_MODEM_INFO_BUFFER_SIZE=128
     -DCONFIG_COAP_CLIENT_MAX_REQUESTS=2
     -DCONFIG_COAP_CLIENT_BLOCK_SIZE=256

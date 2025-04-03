@@ -247,7 +247,7 @@ psa_status_t cracen_copy_key(psa_key_attributes_t *attributes, const uint8_t *so
 
 psa_status_t cracen_destroy_key(const psa_key_attributes_t *attributes);
 
-size_t cracen_get_opaque_size(const psa_key_attributes_t *attributes);
+psa_status_t cracen_get_opaque_size(const psa_key_attributes_t *attributes, size_t *key_size);
 
 psa_status_t cracen_jpake_setup(cracen_jpake_operation_t *operation,
 				const psa_key_attributes_t *attributes, const uint8_t *password,
@@ -360,5 +360,19 @@ psa_status_t cracen_spake2p_get_shared_key(cracen_spake2p_operation_t *operation
 					   size_t output_size, size_t *output_length);
 
 psa_status_t cracen_spake2p_abort(cracen_spake2p_operation_t *operation);
+
+int cracen_ed25519_sign(const uint8_t *priv_key, char *signature, const uint8_t *message,
+			size_t message_length);
+
+int cracen_ed25519_verify(const uint8_t *pub_key, const char *message, size_t message_length,
+			  const char *signature);
+
+int cracen_ed25519ph_sign(const uint8_t *priv_key, char *signature, const uint8_t *message,
+			  size_t message_length, bool is_message);
+
+int cracen_ed25519ph_verify(const uint8_t *pub_key, const char *message, size_t message_length,
+			    const char *signature, bool is_message);
+
+int cracen_ed25519_create_pubkey(const uint8_t *priv_key, uint8_t *pub_key);
 
 #endif /* CRACEN_PSA_H */

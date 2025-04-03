@@ -1543,7 +1543,7 @@ class OpenThreadTHCI(object):
         # self.sedPollingRate = ModuleHelper.Default_Harness_SED_Polling_Rate
         self.__sedPollPeriod = 3 * 1000  # in milliseconds
         self.ssedTimeout = 30  # in seconds
-        self.cslPeriod = 3125  # in milliseconds
+        self.cslPeriod = 500  # in milliseconds
         self.deviceRole = None
         self.provisioningUrl = ""
         self.hasActiveDatasetToCommit = False
@@ -3736,9 +3736,7 @@ class OpenThreadTHCI(object):
 
     def srp_client_remove(self, instancename, servicename):
         cmd = "srp client service remove %s %s" % (instancename, servicename)
-        # cmd = 'srp client service remove service-test-1 _thread-test._udp'
         self.__executeCommand(cmd)
-        self.__executeCommand("netdata register")
         time.sleep(3)
 
     def srpCallBackEnable(self):

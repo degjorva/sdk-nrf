@@ -9,8 +9,28 @@ menuconfig SDP
 
 if SDP
 
+choice SDP_APPLICATION
+	prompt "SDP application selection"
+	help
+	  Select which SDP application should be flashed on FLPR.
+
 config SDP_GPIO
 	bool "SDP GPIO application"
+
+config SDP_MSPI
+	bool "SDP MSPI application"
+
+endchoice
+
+config SDP_DEVELOPER_MODE
+	bool "SDP developer mode"
+
+config SDP_IMAGE_PATH
+	string
+	default "${ZEPHYR_NRF_MODULE_DIR}/applications/sdp/gpio" if SDP_GPIO
+	default "${ZEPHYR_NRF_MODULE_DIR}/applications/sdp/mspi" if SDP_MSPI
+	help
+	  Source directory of SDP image.
 
 if SDP_GPIO
 
@@ -35,6 +55,26 @@ config SDP_GPIO_BACKEND_ICBMSG
 endchoice
 
 endif # SDP_GPIO
+
+if SDP_MSPI
+
+config SDP_FLPR_APP_FAULT_TIMER
+	bool "SDP FLPR application fault timer"
+	default y
+	help
+	  Enable SDP FLPR application fault timer.
+
+if SDP_FLPR_APP_FAULT_TIMER
+
+config SDP_FLPR_APP_FAULT_TIMEOUT
+	int "SDP FLPR application fault timeout"
+	default 1000000
+	help
+	  Fault timeout in microseconds.
+
+endif # SDP_FLPR_APP_FAULT_TIMER
+
+endif # SDP_MSPI
 
 endif # SDP
 

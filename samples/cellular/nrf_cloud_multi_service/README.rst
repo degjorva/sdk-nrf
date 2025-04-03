@@ -399,11 +399,6 @@ In that case, also set the :ref:`CONFIG_LOCATION_TRACKING <CONFIG_LOCATION_TRACK
 
 For examples, see the related minimal overlays in the :ref:`nrf_cloud_multi_service_minimal` section.
 
-.. note::
-   MQTT should only be used with applications that need to stay connected constantly or transfer data frequently.
-   While this sample does allow its core features to be slowed or completely disabled, in real-world applications, you should carefully consider your data throughput and whether MQTT is an appropriate solution.
-   If you want to disable or excessively slow all of these features for a real-world application, other solutions, such as the `nRF Cloud Rest API`_, may be more appropriate.
-
 Customizing GNSS antenna configuration
 ======================================
 
@@ -1002,14 +997,14 @@ Once your device has been flashed with this sample, you can add a credential by 
 .. parsed-literal::
    :class: highlight
 
-   wifi_cred add -s *NetworkSSID* -k 1 -p *NetworkPassword*
+   wifi cred add *NetworkSSID* WPA2-PSK *NetworkPassword*
 
 Where *NetworkSSID* is replaced with the SSID of the Wi-Fi access point you want your device to connect to, and *NetworkPassword* is its password.
-Then either reboot the device or use the ``wifi_cred auto_connect`` command to manually trigger a connection attempt.
+Then either reboot the device or use the ``wifi cred auto_connect`` command to manually trigger a connection attempt.
 
 From now on, these credentials will automatically be used when the configured network is reachable.
 
-See the :ref:`Wi-Fi shell sample documentation <wifi_shell_sample>` for more details on the ``wifi_cred`` command.
+See the :ref:`Wi-Fi shell sample documentation <wifi_shell_sample>` for more details on the ``wifi`` commands.
 
 Building with nRF Cloud logging support
 =======================================
@@ -1169,6 +1164,12 @@ Then, complete the following steps for each device you wish to onboard:
 1. Make sure your device is plugged in and that this sample has been flashed to it.
 #. Install the device and server credentials using the :file:`device_credentials_installer.py` Python script :ref:`you installed <nrf_cloud_multi_service_install_nrf_utils>`:
 
+   .. note::
+      The :file:`device_credentials_installer.py` Python script requires other scripts in the same repository to be present in the same folder on your computer.
+      Clone this repository in its entirety.
+      The script does not work by itself without the others.
+      Also, install the required Python packages as mentioned in the script documentation.
+
    (Select the protocol (MQTT or CoAP) and connectivity technology (LTE or Wi-Fi) you built the sample for)
 
    .. tabs::
@@ -1253,17 +1254,17 @@ Then, complete the following steps for each device you wish to onboard:
 
    .. code-block:: console
 
-      Saving provisioning endpoint CSV file provision.csv...
-      Provisioning CSV file saved
+      Saving device onboarding CSV file onboard.csv...
+      Onboarding CSV file saved, row count: 1
 
-   And a new file, :file:`provision.csv` should be created.
+   And a new file, :file:`onboard.csv` should be created.
    This file will be used in the next step.
 
-#. Navigate to the `Bulk Onboard Devices`_ page of the nRF Cloud portal and upload the :file:`provision.csv` file to onboard the device.
+#. Navigate to the `Bulk Onboard Devices`_ page of the nRF Cloud portal and upload the :file:`onboard.csv` file to onboard the device.
 
    To get there from the :guilabel:`Dashboard`, click :guilabel:`Devices` under :guilabel:`Device Management` in the navigation pane on the left, then click :guilabel:`Add Devices` and select **Bulk Onboard**.
 
-   Once the `Bulk Onboard Devices`_ page is open, drag in the :file:`provision.csv` file and click **Onboard**.
+   Once the `Bulk Onboard Devices`_ page is open, drag in the :file:`onboard.csv` file and click **Onboard**.
 
    You should see a message stating that the file was uploaded successfully, and your device should appear in the `Devices <nRF Cloud Portal Devices_>`_ page.
 

@@ -19,7 +19,7 @@ Highlights
 This release introduces significant, potentially breaking, changes to the SDK:
 
 * The `previous method to define a board (hardware model)`_ is deprecated and being replaced by :ref:`a new method (hardware model v2) <zephyr:board_porting_guide>`.
-* The previous method to define :ref:`multi-image builds (parent-child images) <ug_multi_image>` is deprecated and being replaced by :ref:`zephyr:sysbuild`.
+* The previous method to define multi-image builds (parent-child images) is deprecated and being replaced by :ref:`zephyr:sysbuild`.
 
 All samples and applications in the SDK have been migrated.
 Consult respective documentation as additional or changed parameters might be needed to build them successfully.
@@ -56,7 +56,7 @@ Added the following features as supported:
   * Hardware model v2 (HWMv2), an improved extensible system for defining boards.
     This is the default boards definition system from this |NCS| release and onwards.
     See `Migrating to the current hardware model`_.
-  * :ref:`zephyr:sysbuild`, an improved and extensible system for multi-image build, replacing :ref:`ug_multi_image` (parent/child images).
+  * :ref:`zephyr:sysbuild`, an improved and extensible system for multi-image build, replacing parent/child images.
     See `Migrating from multi-image builds to sysbuild`_.
   * Samples and applications that use short-range radio and run on multi-core SoCs were migrated to use the :ref:`ipc_radio` as the default image for the network/radio core.
     Samples previously used for the network/radio core are no longer used in the default builds: :zephyr:code-sample:`bluetooth_hci_ipc`, :zephyr:code-sample:`nrf_ieee802154_rpmsg`, ``nRF5340: Multiprotocol RPMsg``, and :ref:`ble_rpc_host`.
@@ -357,10 +357,10 @@ Zigbee
 
 * Updated:
 
-  * :ref:`nrfxlib:zboss` to v3.11.4.0 and platform v5.1.5 (``v3.11.4.0+5.1.5``).
+  * ZBOSS Zigbee stack to v3.11.4.0 and platform v5.1.5 (``v3.11.4.0+5.1.5``).
     They contain fixes for infinite boot loop due to ZBOSS NVRAM corruption and other bugs.
-    For details, see :ref:`zboss_changelog`.
-  * :ref:`ZBOSS Network Co-processor Host <ug_zigbee_tools_ncp_host>` package to the new version v2.2.3.
+    For details, see ZBOSS changelog.
+  * ZBOSS Network Co-processor Host package to the new version v2.2.3.
 
 * Fixed:
 

@@ -180,7 +180,9 @@ static void link_registered_work(struct k_work *unused)
 	/* Activate the deactive ones that have been connected by us */
 	link_api_activate_mosh_contexts(pdn_act_status_arr, PDN_CONTEXTS_MAX);
 
-	/* Seems that 1st info read fails without this. Thus, let modem have some time */
+	/* PDN activation may take some time. Thus, let modem have some time
+	 * before reading the PDN information.
+	 */
 	k_sleep(K_MSEC(1500));
 
 	link_api_modem_info_get_for_shell(true);

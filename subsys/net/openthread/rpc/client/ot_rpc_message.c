@@ -19,7 +19,7 @@
 otError otMessageAppend(otMessage *aMessage, const void *aBuf, uint16_t aLength)
 {
 	struct nrf_rpc_cbor_ctx ctx;
-	ot_msg_key key = (ot_msg_key)aMessage;
+	ot_rpc_res_tab_key key = (ot_rpc_res_tab_key)aMessage;
 	otError error = OT_ERROR_NONE;
 
 	if (aLength == 0 || aBuf == NULL) {
@@ -39,7 +39,7 @@ otMessage *otUdpNewMessage(otInstance *aInstance, const otMessageSettings *aSett
 {
 	otMessage *msg = NULL;
 	struct nrf_rpc_cbor_ctx ctx;
-	ot_msg_key key;
+	ot_rpc_res_tab_key key;
 
 	ARG_UNUSED(aInstance);
 
@@ -62,9 +62,9 @@ otMessage *otUdpNewMessage(otInstance *aInstance, const otMessageSettings *aSett
 void otMessageFree(otMessage *aMessage)
 {
 	struct nrf_rpc_cbor_ctx ctx;
-	ot_msg_key key = (ot_msg_key)aMessage;
+	ot_rpc_res_tab_key key = (ot_rpc_res_tab_key)aMessage;
 
-	NRF_RPC_CBOR_ALLOC(&ot_group, ctx, sizeof(ot_msg_key) + 1);
+	NRF_RPC_CBOR_ALLOC(&ot_group, ctx, sizeof(ot_rpc_res_tab_key) + 1);
 
 	nrf_rpc_encode_uint(&ctx, key);
 	nrf_rpc_cbor_cmd_rsp_no_err(&ot_group, OT_RPC_CMD_MESSAGE_FREE, &ctx);
@@ -77,7 +77,7 @@ void otMessageFree(otMessage *aMessage)
 uint16_t otMessageGetLength(const otMessage *aMessage)
 {
 	struct nrf_rpc_cbor_ctx ctx;
-	ot_msg_key key = (ot_msg_key)aMessage;
+	ot_rpc_res_tab_key key = (ot_rpc_res_tab_key)aMessage;
 	uint16_t ret = 0;
 
 	NRF_RPC_CBOR_ALLOC(&ot_group, ctx, sizeof(uint32_t) + 1);
@@ -98,7 +98,7 @@ uint16_t otMessageGetLength(const otMessage *aMessage)
 uint16_t otMessageGetOffset(const otMessage *aMessage)
 {
 	struct nrf_rpc_cbor_ctx ctx;
-	ot_msg_key key = (ot_msg_key)aMessage;
+	ot_rpc_res_tab_key key = (ot_rpc_res_tab_key)aMessage;
 	uint16_t ret = 0;
 
 	NRF_RPC_CBOR_ALLOC(&ot_group, ctx, sizeof(uint32_t) + 1);
@@ -119,7 +119,7 @@ uint16_t otMessageGetOffset(const otMessage *aMessage)
 uint16_t otMessageRead(const otMessage *aMessage, uint16_t aOffset, void *aBuf, uint16_t aLength)
 {
 	struct nrf_rpc_cbor_ctx ctx;
-	ot_msg_key key = (ot_msg_key)aMessage;
+	ot_rpc_res_tab_key key = (ot_rpc_res_tab_key)aMessage;
 	size_t size = 0;
 	const void *buf = NULL;
 
@@ -147,4 +147,36 @@ uint16_t otMessageRead(const otMessage *aMessage, uint16_t aOffset, void *aBuf, 
 	}
 
 	return MIN(size, aLength);
+}
+
+otError otMessageGetThreadLinkInfo(const otMessage *aMessage, otThreadLinkInfo *aLinkInfo)
+{
+	ot_rpc_res_tab_key key = (ot_rpc_res_tab_key)aMessage;
+	struct nrf_rpc_cbor_ctx ctx;
+	otError error;
+
+	NRF_RPC_CBOR_ALLOC(&ot_group, ctx, 1 + sizeof(key));
+	nrf_rpc_encode_uint(&ctx, key);
+	nrf_rpc_cbor_cmd_rsp_no_err(&ot_group, OT_RPC_CMD_MESSAGE_GET_THREAD_LINK_INFO, &ctx);
+
+	error = nrf_rpc_decode_uint(&ctx);
+
+	if (nrf_rpc_decode_valid(&ctx) && error == OT_ERROR_NONE) {
+		aLinkInfo->mPanId = nrf_rpc_decode_uint(&ctx);
+		aLinkInfo->mChannel = nrf_rpc_decode_uint(&ctx);
+		aLinkInfo->mRss = nrf_rpc_decode_int(&ctx);
+		aLinkInfo->mLqi = nrf_rpc_decode_uint(&ctx);
+		aLinkInfo->mLinkSecurity = nrf_rpc_decode_bool(&ctx);
+		aLinkInfo->mIsDstPanIdBroadcast = nrf_rpc_decode_bool(&ctx);
+		aLinkInfo->mTimeSyncSeq = nrf_rpc_decode_uint(&ctx);
+		aLinkInfo->mNetworkTimeOffset = nrf_rpc_decode_int64(&ctx);
+		aLinkInfo->mRadioType = nrf_rpc_decode_uint(&ctx);
+	}
+
+	if (!nrf_rpc_decoding_done_and_check(&ot_group, &ctx)) {
+		ot_rpc_report_rsp_decoding_error(OT_RPC_CMD_MESSAGE_GET_THREAD_LINK_INFO);
+		return OT_ERROR_NOT_FOUND;
+	}
+
+	return error;
 }

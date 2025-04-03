@@ -175,7 +175,7 @@ static void adv_start(void)
 	int err;
 
 	err = bt_le_adv_start(
-		BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONNECTABLE | BT_LE_ADV_OPT_ONE_TIME,
+		BT_LE_ADV_PARAM(BT_LE_ADV_OPT_CONN,
 			BT_GAP_ADV_FAST_INT_MIN_2,
 			BT_GAP_ADV_FAST_INT_MAX_2,
 			NULL),
@@ -257,7 +257,7 @@ int main(void)
 
 	k_work_init(&work, work_handler);
 	console_init();
-	printk("Starting Event Trigger Example.\n");
+	printk("Starting Event Trigger Sample.\n");
 
 	err = bt_enable(NULL);
 	if (err) {

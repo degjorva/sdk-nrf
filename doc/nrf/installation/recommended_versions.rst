@@ -285,7 +285,10 @@ J-Link Software and Documentation Pack
 SEGGER's `J-Link Software and Documentation Pack`_ is a package of tools that is required for SEGGER J-Link to work correctly with both Intel and ARM assemblies.
 Among others, this package includes the J-Link RTT Viewer, which can be used for :ref:`test_and_optimize`.
 
-It is recommended to use the |jlink_ver| of the package when you :ref:`installing_vsc`.
+Use the J-Link |jlink_ver| when working with the |NCS|, as also listed in the :ref:`installing_vsc` section on the |NCS| installation page.
+
+On Windows, you also need to install SEGGER USB Driver for J-Link, which is required for support of older Nordic Semiconductor devices in :ref:`requirements_nrf_util`.
+For information on how to install the USB Driver, see the `nRF Util prerequisites`_ documentation.
 
 .. _toolchain_management_tools:
 .. _additional_nordic_sw_tools:
@@ -366,19 +369,7 @@ Tier definitions
      Not applicable
        The specified architecture is not supported for the respective operating system.
 
-.. _requirements_clt:
-
-nRF Command Line Tools
-======================
-
-`nRF Command Line Tools`_ is a package of tools used for development, programming, and debugging of Nordic Semiconductor's nRF51, nRF52, nRF53, nRF54H, and nRF91 Series devices.
-Among others, this package includes the nrfjprog executable and library, which the west command uses by default to program the development kits.
-For more information on nrfjprog, see `Programming SoCs with nrfjprog`_.
-
-.. note::
-    |nrf_CLT_deprecation_note|
-
-It is recommended to use the latest version of the package when you :ref:`installing_vsc`.
+.. _requirements_nrfvsc:
 
 nRF Connect for Visual Studio Code
 ==================================
@@ -408,16 +399,10 @@ Its functionality is provided through installable and upgradeable commands that 
 The utility follows its own release cycle and has its own `operating system requirements <nRF Util_>`_.
 Use the latest available release for development.
 
-nRF Util provides |NCS| toolchain packages for each |NCS| release through the ``toolchain-manager`` command.
-See the :ref:`install_ncs` page for information about how to use this command.
+When you :ref:`install the nRF Connect SDK <install_ncs>`, you need to install the following nRF Util commands:
 
-.. _requirements_ncd:
+* `device command <Device command overview_>`_ - The latest version is required as the default :ref:`west runner <programming_selecting_runner>`.
+* `sdk-manager command`_ - The latest version is required for working with |NCS| toolchain packages.
+  You only need to install this command if you are working with command line in the |NCS|.
 
-nRF Connect for Desktop's Toolchain Manager
-===========================================
-
-`nRF Connect for Desktop`_ is a cross-platform tool that provides different applications that simplify working the |NCS| and Nordic Semiconductor products.
-One of those tools is the :ref:`Toolchain Manager <auto_installation_tcm_setup>`, which allows you to install the toolchain and the SDK.
-
-.. note::
-    |toolchain_management_ncs_versions|
+See `Installing and upgrading nRF Util commands`_ for information about how to install these commands.

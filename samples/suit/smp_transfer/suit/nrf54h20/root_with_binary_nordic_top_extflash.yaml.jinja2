@@ -1,3 +1,9 @@
+# Consistency checks for the build configuration
+{%-  import 'consistency_checks.jinja' as consistency_checks -%}
+
+# Verify signature verification configuration
+{{ consistency_checks.suit_verify_signature_check("ROOT", sysbuild, sysbuild) }}
+
 {%- set component_index = 0 %}
 {%- set component_list = [] %}
 {%- set mpi_root_vendor_name = sysbuild['config']['SB_CONFIG_SUIT_MPI_ROOT_VENDOR_NAME']|default('nordicsemi.com') %}
@@ -116,6 +122,23 @@ SUIT_Envelope_Tagged:
 {%- endif %}
 
     suit-payload-fetch:
+{%- if nordic_top %}
+    - suit-directive-set-component-index: 0
+    - suit-directive-override-parameters:
+        suit-parameter-uri: "#top"
+    - suit-directive-fetch:
+      - suit-send-record-failure
+    - suit-condition-dependency-integrity:
+      - suit-send-record-success
+      - suit-send-record-failure
+      - suit-send-sysinfo-success
+      - suit-send-sysinfo-failure
+    - suit-directive-process-dependency:
+      - suit-send-record-success
+      - suit-send-record-failure
+      - suit-send-sysinfo-success
+      - suit-send-sysinfo-failure
+{%- endif %}
 {%- if radio is defined %}
     - suit-directive-set-component-index: 0
     - suit-directive-override-parameters:
@@ -303,5 +326,5 @@ SUIT_Envelope_Tagged:
     '#{{ application['name'] }}': {{ artifacts_folder ~ application['name'] }}.suit
 {%- endif %}
 {%- if nordic_top %}
-    '#top': {{ sysbuild['config']['SB_CONFIG_SUIT_ENVELOPE_NORDIC_TOP_DIRECTORY'] }}/nordic_top.suit
+    '#top': {{ artifacts_folder }}nordic_top.suit
 {%- endif %}

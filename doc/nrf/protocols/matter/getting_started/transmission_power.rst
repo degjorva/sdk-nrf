@@ -30,7 +30,7 @@ The following table lists the default TX power values.
 |                                                              +--------------------------+------------------------------------------------------+-----------------------------------------------------------------+
 |                                                              | nrf21540dk               | 20                                                   | 0                                                               |
 |                                                              +--------------------------+------------------------------------------------------+-----------------------------------------------------------------+
-|                                                              | nrf54l15dk               | 0                                                    | 0                                                               |
+|                                                              | nrf54l15dk               | 8                                                    | 0                                                               |
 +--------------------------------------------------------------+--------------------------+------------------------------------------------------+-----------------------------------------------------------------+
 | :ref:`Light Switch (SED) <matter_light_switch_sample>`       | nrf52840dk               | 0                                                    | 0                                                               |
 |                                                              +--------------------------+------------------------------------------------------+-----------------------------------------------------------------+
@@ -58,7 +58,7 @@ The following table lists the default TX power values.
 |                                                              +--------------------------+------------------------------------------------------+-----------------------------------------------------------------+
 |                                                              | nrf21540dk               | 20                                                   | 0                                                               |
 |                                                              +--------------------------+------------------------------------------------------+-----------------------------------------------------------------+
-|                                                              | nrf54l15dk               | 0                                                    | 0                                                               |
+|                                                              | nrf54l15dk               | 8                                                    | 0                                                               |
 +--------------------------------------------------------------+--------------------------+------------------------------------------------------+-----------------------------------------------------------------+
 | :ref:`Widow Covering (SSED) <matter_window_covering_sample>` | nrf52840dk               | 0                                                    | 0                                                               |
 |                                                              +--------------------------+------------------------------------------------------+-----------------------------------------------------------------+
@@ -92,9 +92,14 @@ The maximum value of 20 dBm is only recommended for devices that are using :ref:
 +--------------------------+-----------------------------------------------------------------------------+
 | nrf21540dk               | -40 to +20 (:ref:`more information <ug_matter_gs_transmission_power_fem>`)  |
 +--------------------------+-----------------------------------------------------------------------------+
-| nrf54l15dk_nrf54l15      | -8 to +8                                                                    |
+| nrf54l15dk_nrf54l15      | -40 to +8                                                                   |
 | nrf54l15dk_nrf54l10      |                                                                             |
 +--------------------------+-----------------------------------------------------------------------------+
+
+.. note::
+
+   For nRF54L Series SoCs, the maximum TX power depends on the package variant.
+   CSP package variants have a maximum TX power of 8 dBm, while for the QFN package variants it is 7 dBm.
 
 You can provide the desired value also as a CMake argument when building the sample.
 
@@ -141,10 +146,15 @@ The following table lists the minimum and maximum output power values in dBm for
 +--------------------------+-----------------------------------------------------------------------------------------------------------------+
 | nrf7002dk                | -40 to +3 (:kconfig:option:`CONFIG_BT_CTLR_TX_PWR_MINUS_40` to :kconfig:option:`CONFIG_BT_CTLR_TX_PWR_PLUS_3`)  |
 +--------------------------+-----------------------------------------------------------------------------------------------------------------+
-| nrf54l15dk               | -40 to +8 (:kconfig:option:`CONFIG_BT_CTLR_TX_PWR_MINUS_40` to :kconfig:option:`CONFIG_BT_CTLR_TX_PWR_PLUS_3`)  |
+| nrf54l15dk               | -40 to +8 (:kconfig:option:`CONFIG_BT_CTLR_TX_PWR_MINUS_40` to :kconfig:option:`CONFIG_BT_CTLR_TX_PWR_PLUS_8`)  |
 +--------------------------+-----------------------------------------------------------------------------------------------------------------+
 | nrf21540dk               | :ref:`Handled automatically by the FEM driver <ug_matter_gs_transmission_power_fem>`                            |
 +--------------------------+-----------------------------------------------------------------------------------------------------------------+
+
+.. note::
+
+   For nRF54L Series SoCs, the maximum TX power depends on the package variant.
+   CSP package variants have a maximum TX power of 8 dBm, while for the QFN package variants it is 7 dBm.
 
 For multicore boards, the configuration must be applied to the network core image.
 You can do this by either editing the :file:`prj.conf` file or building the sample with an additional argument, as described in the following tabs.

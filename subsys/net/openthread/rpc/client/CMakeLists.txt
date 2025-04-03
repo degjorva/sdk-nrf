@@ -7,6 +7,7 @@
 zephyr_library()
 
 zephyr_library_sources(
+  ot_rpc_client_common.c
   ot_rpc_cli.c
   ot_rpc_coap.c
   ot_rpc_diag.c
@@ -14,8 +15,11 @@ zephyr_library_sources(
   ot_rpc_instance.c
   ot_rpc_ip6.c
   ot_rpc_link.c
+  ot_rpc_link_raw.c
   ot_rpc_message.c
+  ot_rpc_meshdiag.c
   ot_rpc_netdata.c
+  ot_rpc_netdiag.c
   ot_rpc_srp_client.c
   ot_rpc_thread.c
   ot_rpc_udp.c
@@ -25,6 +29,7 @@ zephyr_library_sources(
 zephyr_library_sources_ifdef(CONFIG_OPENTHREAD_RPC_NET_IF ot_rpc_if.c)
 
 zephyr_library_include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/../common
 )
 

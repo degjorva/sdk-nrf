@@ -12,6 +12,8 @@ As part of this guide, you will modify the :ref:`Matter template <matter_templat
 The sensor will periodically generate the simulated temperature sensor value and update the corresponding cluster attributes.
 This application will form a Matter device within a Matter network.
 
+See the :ref:`Creating custom clusters in Matter application <ug_matter_creating_custom_cluster>` guide on how to add a custom cluster to the Matter application.
+
 .. note::
    The sensor sample used in this instruction is used here as an example, and does not follow the Matter Device Type Library Specification.
    When creating an official product, follow the Matter Device Type Library Specification.

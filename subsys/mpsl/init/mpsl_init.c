@@ -15,6 +15,10 @@
 #include <mpsl/mpsl_work.h>
 #include "multithreading_lock.h"
 #include <nrfx.h>
+#if defined(NRF_TRUSTZONE_NONSECURE)
+#include "tfm_platform_api.h"
+#include "tfm_ioctl_core_api.h"
+#endif
 #if IS_ENABLED(CONFIG_SOC_COMPATIBLE_NRF54LX)
 #include <nrfx_power.h>
 #endif
@@ -26,15 +30,19 @@
 #endif
 
 #if IS_ENABLED(CONFIG_MPSL_USE_ZEPHYR_PM)
-#include <mpsl/mpsl_pm_utils.h>
+#include "../pm/mpsl_pm_utils.h"
 #endif
+
+#if IS_ENABLED(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL)
+#include "../clock_ctrl/mpsl_clock_ctrl.h"
+#endif /* CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL */
 
 LOG_MODULE_REGISTER(mpsl_init, CONFIG_MPSL_LOG_LEVEL);
 
 #if defined(CONFIG_MPSL_CALIBRATION_PERIOD)
 static void mpsl_calibration_work_handler(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(calibration_work, mpsl_calibration_work_handler);
-#endif /* CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC && !CONFIG_SOC_SERIES_NRF54HX */
+#endif /* CONFIG_MPSL_CALIBRATION_PERIOD */
 
 extern void rtc_pretick_rtc0_isr_hook(void);
 
@@ -310,7 +318,7 @@ static void m_assert_handler(const char *const file, const uint32_t line)
 }
 #endif /* IS_ENABLED(CONFIG_MPSL_ASSERT_HANDLER) */
 
-#if !defined(CONFIG_SOC_SERIES_NRF54HX)
+#if !defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL)
 static uint8_t m_config_clock_source_get(void)
 {
 #ifdef CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC
@@ -328,7 +336,7 @@ static uint8_t m_config_clock_source_get(void)
 	return 0;
 #endif
 }
-#endif /* !CONFIG_SOC_SERIES_NRF54HX */
+#endif /* !CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL */
 
 #if defined(CONFIG_MPSL_CALIBRATION_PERIOD)
 static atomic_t do_calibration;
@@ -346,23 +354,25 @@ static void mpsl_calibration_work_handler(struct k_work *work)
 	mpsl_work_schedule(&calibration_work,
 			   K_MSEC(CONFIG_MPSL_CALIBRATION_PERIOD));
 }
-#endif /* CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC && !CONFIG_SOC_SERIES_NRF54HX */
+#endif /* CONFIG_MPSL_CALIBRATION_PERIOD */
 
 static int32_t mpsl_lib_init_internal(void)
 {
 	int err = 0;
+#if !defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL)
 	mpsl_clock_lfclk_cfg_t clock_cfg;
+#endif /* CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL */
 
-#ifdef CONFIG_MPSL_TRIGGER_IPC_TASK_ON_RTC_START
+#if defined(CONFIG_MPSL_TRIGGER_IPC_TASK_ON_RTC_START)
 	nrf_ipc_send_config_set(NRF_IPC,
 		CONFIG_MPSL_TRIGGER_IPC_TASK_ON_RTC_START_CHANNEL,
 		(1UL << CONFIG_MPSL_TRIGGER_IPC_TASK_ON_RTC_START_CHANNEL));
 	mpsl_clock_task_trigger_on_rtc_start_set(
 		(uint32_t)&NRF_IPC->TASKS_SEND[CONFIG_MPSL_TRIGGER_IPC_TASK_ON_RTC_START_CHANNEL]);
-#endif
+#endif /* CONFIG_MPSL_TRIGGER_IPC_TASK_ON_RTC_START */
 
 	/* TODO: Clock config should be adapted in the future to new architecture. */
-#if !defined(CONFIG_SOC_SERIES_NRF54HX)
+#if !defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL)
 	clock_cfg.source = m_config_clock_source_get();
 	clock_cfg.accuracy_ppm = CONFIG_CLOCK_CONTROL_NRF_ACCURACY;
 	clock_cfg.skip_wait_lfclk_started =
@@ -382,15 +392,22 @@ static int32_t mpsl_lib_init_internal(void)
 #else
 	clock_cfg.rc_ctiv = 0;
 	clock_cfg.rc_temp_ctiv = 0;
-#endif
-#else
-	/* For now just set the values to 0 to avoid "use of uninitialized variable" warnings.
-	 * MPSL assumes the clocks are always available and does currently not implement
-	 * clock handling on these platforms. The LFCLK is expected to have an accuracy of
-	 * 500ppm or better regardless of the value passed in clock_cfg.
-	 */
-	memset(&clock_cfg, 0, sizeof(clock_cfg));
-#endif
+#endif /* CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC */
+#endif /* !CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL */
+
+#if defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL)
+	err = mpsl_clock_ctrl_init();
+	if (err) {
+		return err;
+	}
+#endif /* CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL */
+
+#if defined(CONFIG_MPSL_USE_ZEPHYR_PM)
+	err = mpsl_pm_utils_init();
+	if (err) {
+		return err;
+	}
+#endif /* CONFIG_MPSL_USE_ZEPHYR_PM */
 
 #if defined(CONFIG_SOC_SERIES_NRF54HX)
 	/* Secure domain no longer enables DPPI channels for local domains,
@@ -399,13 +416,18 @@ static int32_t mpsl_lib_init_internal(void)
 	nrf_dppi_channels_enable(NRF_DPPIC130, DPPI_SINK_CHANNELS);
 	nrf_dppi_channels_enable(NRF_DPPIC132, DPPI_SOURCE_CHANNELS);
 #endif
+#if defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL)
+	err = mpsl_init(NULL, CONFIG_MPSL_LOW_PRIO_IRQN, m_assert_handler);
+#else
 	err = mpsl_init(&clock_cfg, CONFIG_MPSL_LOW_PRIO_IRQN, m_assert_handler);
+#endif /* CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL */
 	if (err) {
 		return err;
 	}
 
+#if !defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL)
 	mpsl_clock_hfclk_latency_set(CONFIG_MPSL_HFCLK_LATENCY);
-
+#endif /* !CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL */
 	if (IS_ENABLED(CONFIG_SOC_NRF_FORCE_CONSTLAT) &&
 		!IS_ENABLED(CONFIG_SOC_COMPATIBLE_NRF54LX)) {
 		mpsl_pan_rfu();
@@ -417,6 +439,21 @@ static int32_t mpsl_lib_init_internal(void)
 	if (err) {
 		return err;
 	}
+#endif /* MPSL_TIMESLOT_SESSION_COUNT > 0 */
+#if defined(NRF_TRUSTZONE_NONSECURE)
+	/* Temporary fix in order to get mpsl to work well when
+	 *  compiling for nrf54l15dk/nrf54l15/cpuapp/ns
+	 */
+	uint32_t result_out;
+	uint32_t result = tfm_platform_mem_write32((uint32_t)&NRF_RRAMC_S->POWER.LOWPOWERCONFIG,
+		RRAMC_POWER_LOWPOWERCONFIG_MODE_Standby << RRAMC_POWER_LOWPOWERCONFIG_MODE_Pos,
+		RRAMC_POWER_LOWPOWERCONFIG_MODE_Msk,
+		&result_out);
+	(void) result_out;
+	(void) result;
+	  __ASSERT(result == TFM_PLATFORM_ERR_SUCCESS,
+			   "tfm_platform_mem_write32 failed %i\n", result);
+	  __ASSERT(result_out == 0, "tfm_platform_mem_write32 failed %i\n", result_out);
 #endif
 
 	return 0;
@@ -430,10 +467,6 @@ static int mpsl_lib_init_sys(void)
 	if (err) {
 		return err;
 	}
-
-#if IS_ENABLED(CONFIG_MPSL_USE_ZEPHYR_PM)
-	mpsl_pm_utils_init();
-#endif
 
 #if IS_ENABLED(CONFIG_MPSL_DYNAMIC_INTERRUPTS)
 	/* Ensure IRQs are disabled before attaching. */
@@ -481,7 +514,7 @@ static int mpsl_low_prio_init(void)
 	atomic_set(&do_calibration, 1);
 	mpsl_work_schedule(&calibration_work,
 			   K_MSEC(CONFIG_MPSL_CALIBRATION_PERIOD));
-#endif /* CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC && !CONFIG_SOC_SERIES_NRF54HX */
+#endif /* CONFIG_MPSL_CALIBRATION_PERIOD */
 
 	return 0;
 }
@@ -507,13 +540,31 @@ int32_t mpsl_lib_init(void)
 int32_t mpsl_lib_uninit(void)
 {
 #if IS_ENABLED(CONFIG_MPSL_DYNAMIC_INTERRUPTS)
+#if defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL) || defined(CONFIG_MPSL_USE_ZEPHYR_PM)
+	int err;
+#endif /* CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL || CONFIG_MPSL_USE_ZEPHYR_PM */
+
 #if defined(CONFIG_MPSL_CALIBRATION_PERIOD)
 	atomic_set(&do_calibration, 0);
-#endif /* CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC && !CONFIG_SOC_SERIES_NRF54HX */
+#endif /* CONFIG_MPSL_CALIBRATION_PERIOD */
 
 	mpsl_lib_irq_disable();
 
 	mpsl_uninit();
+
+#if defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL)
+	err = mpsl_clock_ctrl_uninit();
+	if (err) {
+		return err;
+	}
+#endif /* CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL */
+
+#if defined(CONFIG_MPSL_USE_ZEPHYR_PM)
+	err = mpsl_pm_utils_uninit();
+	if (err) {
+		return err;
+	}
+#endif /* CONFIG_MPSL_USE_ZEPHYR_PM */
 
 	return 0;
 #else /* !IS_ENABLED(CONFIG_MPSL_DYNAMIC_INTERRUPTS) */
@@ -541,6 +592,17 @@ void mpsl_lowpower_request_callback(void)
 }
 #endif /* defined(CONFIG_SOC_COMPATIBLE_NRF54LX) */
 
-SYS_INIT(mpsl_lib_init_sys, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
-SYS_INIT(mpsl_low_prio_init, POST_KERNEL,
-	 CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+#if defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL)
+#define MPSL_INIT_LEVEL POST_KERNEL
+#else
+#define MPSL_INIT_LEVEL PRE_KERNEL_1
+#endif /* CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL */
+
+#if defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL) && \
+	defined(CONFIG_NRFS_BACKEND_IPC_SERVICE_INIT_PRIO)
+BUILD_ASSERT(CONFIG_MPSL_INIT_PRIORITY > CONFIG_NRFS_BACKEND_IPC_SERVICE_INIT_PRIO,
+			 "MPSL must be initialized after NRFS IPC");
+#endif /* CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL && CONFIG_NRFS_BACKEND_IPC_SERVICE_INIT_PRIO */
+
+SYS_INIT(mpsl_lib_init_sys, MPSL_INIT_LEVEL, CONFIG_MPSL_INIT_PRIORITY);
+SYS_INIT(mpsl_low_prio_init, POST_KERNEL, CONFIG_MPSL_INIT_PRIORITY);

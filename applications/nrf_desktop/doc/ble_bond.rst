@@ -67,7 +67,7 @@ For example, the transition from :c:enumerator:`STATE_ERASE_PEER` to :c:enumerat
 
 When the transition occurs:
 
-a. The :c:struct:`ble_peer_operation_event` with the defined :c:member:`ble_peer_operation_event.op` is submitted.
+1. The :c:struct:`ble_peer_operation_event` with the defined :c:member:`ble_peer_operation_event.op` is submitted.
    For example, when the user confirms the erase advertising, the :c:struct:`ble_peer_operation_event` is submitted with :c:member:`ble_peer_operation_event.op` set to :c:enumerator:`PEER_OPERATION_ERASE_ADV`.
 #. The currently selected application local identity is updated (if anything changed).
 
@@ -171,7 +171,7 @@ The module can go into one of the following standby states to make sure that the
 
 Going into the standby states and leaving these states happens in reaction to the following events:
 
-* ``power_down_event`` - On this event, the module goes into one of the standby states and the ongoing peer operation is cancelled.
+* ``power_down_event`` - On this event, the module goes into one of the standby states and the ongoing peer operation is canceled.
 * ``wake_up_event`` - On this event, the module returns from the standby state.
 
 .. figure:: /images/nrf_desktop_ble_bond_standby.svg

@@ -29,14 +29,107 @@ Samples and applications
 
 This section describes the changes related to samples and applications.
 
-|no_changes_yet_note|
+.. _asset_tracker_v2:
+
+Asset Tracker v2
+----------------
+
+.. toggle::
+
+   * The Asset Tracker v2 application has been removed.
+     For development of asset tracking applications, refer to the `Asset Tracker Template <Asset Tracker Template_>`_.
+
+     The factory-programmed Asset Tracker v2 firmware is still available to program the nRF91 Series devices using the `Programmer app`_, the `Quick Start app`_, and the `Cellular Monitor app`_.
+
+nRF5340 Audio applications
+--------------------------
+
+.. toggle::
+
+   * The :ref:`nrf53_audio_app` :ref:`nrf53_audio_app_building_script` now requires the transport (``-t/--transport``) type to be included.
+   * The :ref:`nrf53_audio_app` :ref:`nrf53_audio_app_building_standard` now requires an extra :ref:`CMake option to provide extra Kconfig fragments <cmake_options>` to select the device type.
 
 Libraries
 =========
 
 This section describes the changes related to libraries.
 
-|no_changes_yet_note|
+Google Fast Pair
+----------------
+
+.. toggle::
+
+   For applications and samples using the :ref:`bt_fast_pair_readme` library:
+
+   * If you use sysbuild for generating a hex file with the Fast Pair provisioning data, you must align your application with the new approach for passing the provisioning parameters (the Model ID and the Anti-Spoofing Private Key).
+     The ``FP_MODEL_ID`` and ``FP_ANTI_SPOOFING_KEY`` CMake variables are replaced by the corresponding ``SB_CONFIG_BT_FAST_PAIR_MODEL_ID`` and ``SB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY`` Kconfig options that are defined at the sysbuild level.
+     The following additional build parameters for Fast Pair are no longer valid:
+
+     ``-DFP_MODEL_ID=0xFFFFFF -DFP_ANTI_SPOOFING_KEY=AbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbA=``
+
+     You must replace them with the new sysbuild Kconfig options.
+     You can provide them as additional build parameters to the build command as follows:
+
+     .. tabs::
+
+        .. tab:: Windows
+
+           ``-DSB_CONFIG_BT_FAST_PAIR_MODEL_ID=0xFFFFFF -DSB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY='\"AbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbA=\"'``
+
+        .. tab:: Linux
+
+           ``-DSB_CONFIG_BT_FAST_PAIR_MODEL_ID=0xFFFFFF -DSB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY=\"AbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbA=\"``
+
+     You can replace this exemplary method with any other configuration method that is supported by sysbuild.
+
+     .. note::
+        To avoid build failures, you must surround the string value for the Anti-Spoofing Private Key parameter with the special character sequence instead of the typical ``"`` character.
+        The surrounding characters depend on your operating system:
+
+        .. tabs::
+
+           .. tab:: Windows
+
+              1. Replace the standard ``"`` character with the ``\"`` characters.
+              #. Surround the modified string value with the ``'`` character.
+
+           .. tab:: Linux
+
+              Replace the standard ``"`` character with the ``\"`` characters.
+
+        The special character sequence is only required when you pass the ``SB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY`` Kconfig option as an additional build parameter.
+
+   * You must remove the ``SB_CONFIG_BT_FAST_PAIR`` Kconfig option from the sysbuild configuration in your project.
+     The ``SB_CONFIG_BT_FAST_PAIR`` option no longer exists in this |NCS| release.
+     Additionally, if you rely on the ``SB_CONFIG_BT_FAST_PAIR`` Kconfig option to set the :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option in the main image configuration of your application, you must align your main image configuration and set the :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option explicitly.
+
+   * If your Fast Pair application uses the Find My Device (FMD) extension, you must update your application code to correctly track the FMDN provisioning state.
+     From this |NCS| release, you must not rely on the :c:member:`bt_fast_pair_fmdn_info_cb.provisioning_state_changed` callback to report the initial provisioning state right after the Fast Pair module is enabled with the :c:func:`bt_fast_pair_enable` function call.
+     Instead, you must use the :c:func:`bt_fast_pair_fmdn_is_provisioned` function to initialize the FMDN provisioning state right after the :c:func:`bt_fast_pair_enable` function call.
+     For more details, see the :ref:`ug_bt_fast_pair_gatt_service_fmdn_info_callbacks_provisioning_state` section in the Fast Pair integration guide.
+
+nRF Cloud library
+-----------------
+
+.. toggle::
+
+   For applications and samples using the :ref:`lib_nrf_cloud` library:
+
+   * You must set the :kconfig:option:`CONFIG_NRF_CLOUD` Kconfig option to access the nRF Cloud libraries.
+     This option is now disabled by default to prevent the unintended inclusion of nRF Cloud Kconfig variables in non-nRF Cloud projects, addressing a previous issue.
+
+Location library
+----------------
+
+.. toggle::
+
+   For applications and samples using the :ref:`lib_location` library:
+
+   * Support for HERE location services and the :kconfig:option:`CONFIG_LOCATION_SERVICE_HERE` Kconfig option has been removed.
+     To use external location services, enable the :kconfig:option:`CONFIG_LOCATION_SERVICE_EXTERNAL` option and implement the required APIs.
+
+   * The ``service`` parameter in :c:struct:`location_cellular_config` and :c:struct:`location_wifi_config` has been removed.
+     The library supports only one location service, so the ``service`` parameter is no longer needed.
 
 .. _migration_3.0_recommended:
 
@@ -45,12 +138,74 @@ Recommended changes
 
 The following changes are recommended for your application to work optimally after the migration.
 
+.. _requirements_clt:
+
+IDE, OS, and tool support
+=========================
+
+.. toggle::
+
+   |nrf_CLT_deprecation_note|
+
+   It is recommended to install the latest version of `nRF Util`_, as listed in the :ref:`installing_vsc` section of the installation page.
+
+.. _gs_app_tcm:
+.. _gs_assistant:
+.. _auto_installation_tcm_setup:
+.. _toolchain_update:
+
+Installation of the SDK and toolchain
+-------------------------------------
+
+.. toggle::
+
+   The Toolchain Manager app has been deprecated: starting from the |NCS| v3.0.0, it no longer provides the latest toolchain and |NCS| versions for installation.
+
+   Use one of the two :ref:`installation methods <install_ncs>` to manage the toolchain and SDK versions, either the recommended |nRFVSC| extension or the command line with nRF Util.
+
+Build system
+============
+
+.. toggle::
+
+   * The default runner for the ``west flash`` command has been changed to use `nRF Util`_ instead of ``nrfjprog`` that is part of the archived `nRF Command Line Tools`_.
+     This affects all :ref:`boards <app_boards>` that used ``nrfjprog`` as the west runner backend for programming the following SoCs and SiPs:
+
+     * nRF91 Series (including nRF91x1)
+     * nRF7002
+     * nRF5340 (including nRF5340 Audio DK)
+     * Nordic Thingy:53
+     * nRF52 Series
+     * nRF21540
+
+     This change is made to ensure that the programming process is consistent across all boards and to provide a more robust programming experience.
+     The ``west flash`` command now uses the ``nrfutil device`` subcommand by default to flash the application to the board.
+
+     It is recommended to install nRF Util to avoid potential issues during programming.
+     Complete the following steps:
+
+     1. Follow the steps for `Installing nRF Util`_ in its official documentation.
+     2. Install the `nrfutil device <Device command overview_>`_ using the following command:
+
+        .. code-block::
+
+           nrfutil install device
+
+     If you prefer to continue using ``nrfjprog`` for programming devices, :ref:`specify the west runner <programming_selecting_runner>` with ``west flash``.
+
 Samples and applications
 ========================
 
 This section describes the changes related to samples and applications.
 
-|no_changes_yet_note|
+Serial LTE Modem
+----------------
+
+.. toggle::
+
+   The error event ``LWM2M_CARRIER_ERROR_RUN`` has been removed from the :ref:`SLM_AT_CARRIER`.
+
+   * Errors that were previously notified to the application with the ``LWM2M_CARRIER_ERROR_RUN`` event type have instead been added to :c:macro:`LWM2M_CARRIER_ERROR_CONFIGURATION`.
 
 Libraries
 =========
@@ -211,3 +366,30 @@ Download client
         .. code-block:: C
 
            err = downloader_deinit(&dl);
+
+Modem SLM
+---------
+
+.. toggle::
+
+   For applications and samples using the :ref:`lib_modem_slm` library:
+
+    * Replace the ``CONFIG_MODEM_SLM_WAKEUP_PIN`` Kconfig option with :kconfig:option:`CONFIG_MODEM_SLM_POWER_PIN`.
+    * Replace the ``CONFIG_MODEM_SLM_WAKEUP_TIME`` Kconfig option with :kconfig:option:`CONFIG_MODEM_SLM_POWER_PIN_TIME`.
+    * Replace the :c:func:`modem_slm_wake_up` function with :c:func:`modem_slm_power_pin_toggle`.
+
+Protocols
+=========
+
+This section provides detailed lists of changes by :ref:`protocol <protocols>`.
+
+Bluetooth Mesh
+--------------
+
+.. toggle::
+
+   * Support for Tinycrypt-based security toolbox (:kconfig:option:`CONFIG_BT_MESH_USES_TINYCRYPT`) has started the deprecation procedure and is not recommended for future designs.
+   * For platforms that do not support the TF-M: The default security toolbox is based on the Mbed TLS PSA API (:kconfig:option:`CONFIG_BT_MESH_USES_MBEDTLS_PSA`).
+   * For platforms that support the TF-M: The default security toolbox is based on the TF-M PSA API (:kconfig:option:`CONFIG_BT_MESH_USES_TFM_PSA`).
+
+The :ref:`ug_bt_mesh_configuring` page provides more information about the updating of the images based on different security toolboxes.

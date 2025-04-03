@@ -43,31 +43,36 @@ Depending on your preferred development method, you can start the correct CLI to
 
    .. group-tab:: Command line
 
-      Use the command for your operating system:
+      Use the command for your operating system with the ``--ncs-version`` corresponding to the version of the |NCS| you are working with.
+      The following commands start the command line environment for the latest release (|release|):
 
       .. tabs::
 
          .. tab:: Windows
 
-            .. code-block:: console
+            .. parsed-literal::
+               :class: highlight
 
-               nrfutil toolchain-manager launch --terminal
+               nrfutil sdk-manager toolchain launch --ncs-version |release|  --terminal
 
          .. tab:: Linux
 
-            .. code-block:: console
+            .. parsed-literal::
+               :class: highlight
 
-               nrfutil toolchain-manager launch --shell
+               nrfutil sdk-manager toolchain launch --ncs-version |release| --shell
 
          .. tab:: macOS
 
-            .. code-block:: console
+            .. parsed-literal::
+               :class: highlight
 
-               nrfutil toolchain-manager launch --shell
+               nrfutil sdk-manager toolchain launch --ncs-version |release| --shell
 
       ..
 
-      See the documentation for nRF Util's `Toolchain Manager command`_ for the list of supported shells.
+      You can also use other options instead of ``--ncs-version``.
+      See the `sdk-manager command documentation <sdk-manager Starting and inspecting the toolchain environment_>`_ for more information.
 
 .. _gs_updating_repos:
 .. _gs_updating_repos_examples:
@@ -199,48 +204,3 @@ To update west to the latest available version in the PyPi repository, run the f
 
          pip3 install -U west
 ..
-
-.. _toolchain_update:
-
-Updating in Toolchain Manager
-*****************************
-
-.. note::
-   Toolchain Manager is only recommended for the |NCS| v1.9.x and earlier.
-   For newer releases, use the |nRFVSC| or the command line tools to manage SDK and toolchain.
-   See :ref:`install_ncs` for details.
-   For migration instructions to the |nRFVSC|, see `How to install the extension`_ in the extension documentation.
-
-Updating toolchain in Toolchain Manager
-=======================================
-
-If you installed the |NCS| automatically using the :ref:`Toolchain Manager <gs_assistant>`, complete the following steps to update the toolchain in Toolchain Manager:
-
-1. Open the Toolchain Manager application in nRF Connect for Desktop.
-#. Click the button with the arrow pointing down next to the installed |NCS| version to expand the drop-down menu with options.
-
-   .. figure:: images/gs-assistant_tm_dropdown.png
-      :alt: The Toolchain Manager dropdown menu for the installed nRF Connect SDK version, cropped
-
-      The Toolchain Manager dropdown menu options
-
-#. In the drop-down menu, click :guilabel:`Update toolchain`.
-
-Updating SDK in Toolchain Manager
-=================================
-
-.. note::
-   The SDK versions available in Toolchain Manager are for specific releases.
-   Updating the SDK repositories in Toolchain Manager might therefore be required only in exceptional situations.
-
-If you installed the |NCS| automatically using the :ref:`Toolchain Manager <gs_assistant>`, complete the following steps to update the repositories in Toolchain Manager:
-
-1. Open the Toolchain Manager application in nRF Connect for Desktop.
-#. Click the button with the arrow pointing down next to the installed |NCS| version to expand the drop-down menu with options.
-
-   .. figure:: images/gs-assistant_tm_dropdown.png
-      :alt: The Toolchain Manager dropdown menu for the installed nRF Connect SDK version, cropped
-
-      The Toolchain Manager dropdown menu options
-
-#. In the drop-down menu, click :guilabel:`Update SDK`.

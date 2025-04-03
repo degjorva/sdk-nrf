@@ -32,8 +32,8 @@ IPv6 network support
 
 The development kits for this sample offer the following IPv6 network support for Matter:
 
-* Matter over Thread is supported for ``nrf52840dk/nrf52840``, ``nrf5340dk/nrf5340/cpuapp``, ``nrf21540dk/nrf52840``, ``nrf54l15dk/nrf54l15/cpuapp``, ``nrf54l15dk/nrf54l10/cpuapp``, and ``nrf54h20dk/nrf54h20/cpuapp``.
-* Matter over Wi-Fi is supported for ``nrf5340dk/nrf5340/cpuapp`` or ``nrf54h20dk/nrf54h20/cpuapp`` with the ``nrf7002ek`` shield attached, or for ``nrf7002dk/nrf5340/cpuapp``.
+* Matter over Thread is supported for the ``nrf52840dk/nrf52840``, ``nrf5340dk/nrf5340/cpuapp``, ``nrf21540dk/nrf52840``, ``nrf54l15dk/nrf54l15/cpuapp``, and ``nrf54l15dk/nrf54l10/cpuapp`` board targets.
+* Matter over Wi-Fi is supported for the ``nrf5340dk/nrf5340/cpuapp`` board target with the ``nrf7002ek`` shield attached, or for the ``nrf7002dk/nrf5340/cpuapp`` board target.
 
 Overview
 ********
@@ -126,42 +126,9 @@ For example:
 
 .. matter_template_build_with_tfm_end
 
-Device Firmware Upgrade support
-===============================
-
 .. |Bluetooth| replace:: Bluetooth
 
-.. include:: ../lock/README.rst
-    :start-after: matter_door_lock_sample_build_with_dfu_start
-    :end-before: matter_door_lock_sample_build_with_dfu_end
-
-Alternatively, for the nRF54L15 DK, the DFU can be configured to only use the internal MRAM for storage.
-This means that both the currently running firmware and the new firmware to be updated will be stored within the device's internal flash memory.
-This configuration is enabled by default for the :ref:`debug configuration <matter_template_custom_configs>`.
-
-The following is an example command to build the sample on the nRF54L15 DK with support for Matter OTA DFU and DFU over Bluetooth SMP, and using internal MRAM only:
-
-.. code-block:: console
-
-    west build -p -b nrf54l15dk/nrf54l15/cpuapp -- -DCONFIG_CHIP_DFU_OVER_BT_SMP=y -DPM_STATIC_YML_FILE=pm_static_nrf54l15dk_nrf54l15_cpuapp_internal.yml -Dmcuboot_EXTRA_CONF_FILE=<absolute_path_to_the_template_sample>/sysbuild/mcuboot/boards/nrf54l15dk_nrf54l15_cpuapp_internal.conf -Dmcuboot_EXTRA_DTC_OVERLAY_FILE=<absolute_path_to_the_template_sample>/sysbuild/mcuboot/boards/nrf54l15dk_nrf54l15_cpuapp_internal.overlay
-
-Note that in this case, the size of the application partition is half of what it would be when using a configuration with external flash memory support.
-
-FEM support
-===========
-
-.. include:: /includes/sample_fem_support.txt
-
-Factory data support
-====================
-
-.. include:: ../lock/README.rst
-    :start-after: matter_door_lock_sample_factory_data_start
-    :end-before: matter_door_lock_sample_factory_data_end
-
-.. include:: ../lock/README.rst
-    :start-after: matter_door_lock_sample_factory_data_nrf54h20_start
-    :end-before: matter_door_lock_sample_factory_data_nrf54h20_end
+.. include:: /includes/advanced_conf_matter.txt
 
 User interface
 **************
@@ -196,18 +163,10 @@ Building and running
 
 .. include:: /includes/build_and_run.txt
 
-.. matter_template_build_wifi_nrf54h20_start
+.. |sample_or_app| replace:: sample
+.. |ipc_radio_dir| replace:: :file:`sysbuild/ipc_radio`
 
-To use nrf54H20 DK with the ``nrf7002ek`` shield attached (2.4 GHz or 5 GHz), follow the :ref:`ug_nrf7002eb_nrf54h20dk_gs` user guide to connect all required pins and then use the following command to build the sample:
-
-.. matter_template_build_wifi_nrf54h20_end
-
-.. code-block:: console
-
-    west build -b nrf54h20dk/nrf54h20/cpuapp -p -- -DSB_CONFIG_WIFI_NRF70=y -DCONFIG_CHIP_WIFI=y -Dtemplate_SHIELD=nrf7002eb_interposer_p1
-
-.. note::
-   |54H_engb_2_8|
+.. include:: /includes/ipc_radio_conf.txt
 
 Selecting a configuration
 =========================

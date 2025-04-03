@@ -42,6 +42,7 @@ target_sources(platform_s
   PRIVATE
   common/tfm_hal_platform.c
   $<$<OR:$<BOOL:${TFM_PARTITION_INITIAL_ATTESTATION}>,$<BOOL:${NRF_PROVISIONING}>>:${CMAKE_CURRENT_SOURCE_DIR}/common/attest_hal.c>
+  $<$<OR:$<BOOL:${TFM_PARTITION_INITIAL_ATTESTATION}>,$<BOOL:${NRF_PROVISIONING}>>:${ZEPHYR_NRF_MODULE_DIR}/subsys/bootloader/bl_storage/bl_storage.c>
   common/assert.c
   $<$<NOT:$<BOOL:${PLATFORM_DEFAULT_OTP}>>:${CMAKE_CURRENT_SOURCE_DIR}/common/dummy_otp.c>
   $<$<NOT:$<BOOL:${PLATFORM_DEFAULT_SYSTEM_RESET_HALT}>>:${CMAKE_CURRENT_SOURCE_DIR}/common/tfm_hal_reset_halt.c>
@@ -115,7 +116,7 @@ if (${TFM_PARTITION_CRYPTO})
     tfm_sprt
   )
 
-  if (${TFM_PARTITION_INITIAL_ATTESTATION})
+  if((${TFM_PARTITION_INITIAL_ATTESTATION}) AND CONFIG_IDENTITY_KEY_TFM)
     target_sources(platform_s
       PRIVATE
       ${ZEPHYR_NRF_MODULE_DIR}/lib/identity_key/identity_key.c

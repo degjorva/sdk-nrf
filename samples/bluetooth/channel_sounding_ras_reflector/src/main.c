@@ -11,6 +11,7 @@
 #include <zephyr/types.h>
 #include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/sys/reboot.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/cs.h>
@@ -60,6 +61,8 @@ static void disconnected_cb(struct bt_conn *conn, uint8_t reason)
 	connection = NULL;
 
 	dk_set_led_off(CON_STATUS_LED);
+
+	sys_reboot(SYS_REBOOT_COLD);
 }
 
 static void remote_capabilities_cb(struct bt_conn *conn, struct bt_conn_le_cs_capabilities *params)
@@ -115,7 +118,7 @@ int main(void)
 		return 0;
 	}
 
-	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), NULL, 0);
+	err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_2, ad, ARRAY_SIZE(ad), NULL, 0);
 	if (err) {
 		LOG_ERR("Advertising failed to start (err %d)", err);
 		return 0;

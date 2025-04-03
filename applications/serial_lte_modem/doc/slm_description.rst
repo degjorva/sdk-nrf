@@ -328,15 +328,16 @@ The following configuration files are provided:
   This disables most of the IP-based protocols available through AT commands (such as FTP and MQTT) as it is expected that the controlling chip's own IP stack is used instead.
   See :ref:`CONFIG_SLM_PPP <CONFIG_SLM_PPP>` and :ref:`SLM_AT_PPP` for more information.
 
-* :file:`overlay-ppp-without-cmux.conf` - Kconfig fragment that configures the UART to be used by PPP.
-  This configuration file should be included when building SLM with PPP and without CMUX.
-
 * :file:`overlay-ppp-without-cmux.overlay` - Devicetree overlay that configures the UART to be used by PPP.
   This configuration file should be included when building SLM with PPP and without CMUX, in addition to :file:`overlay-ppp.conf`.
   It can be customized to fit your configuration (UART, baud rate, and so on).
   By default, it sets the baud rate of the PPP UART to 1 000 000.
 
-* :file:`overlay-zephyr-modem.conf`, :file:`overlay-zephyr-modem-external-mcu.conf`, :file:`overlay-zephyr-modem-nrf9160dk-nrf52840.conf`, :file:`overlay-external-mcu.overlay`,  and :file:`overlay-zephyr-modem-nrf9160dk-nrf52840.overlay` - These configuration files are used when compiling SLM to turn an nRF91 Series SiP into a Zephyr-compatible standalone modem.
+* :file:`overlay-memfault.conf` - Configuration file that enables `Memfault`_.
+  For more information about Memfault features in |NCS|, see :ref:`mod_memfault`.
+
+* :file:`overlay-zephyr-modem.conf`, :file:`overlay-zephyr-modem-nrf9160dk-nrf52840.conf`, :file:`overlay-external-mcu.overlay`,  and :file:`overlay-zephyr-modem-nrf9160dk-nrf52840.overlay` - These configuration files are used when compiling SLM to turn an nRF91 Series SiP into a Zephyr-compatible standalone modem.
+  Also set :kconfig:option:`CONFIG_SLM_POWER_PIN` Kconfig option.
   See :ref:`slm_as_zephyr_modem` for more information.
 
 * :file:`boards/nrf9160dk_nrf9160_ns.conf` - Configuration file specific for the nRF9160 DK.
@@ -452,17 +453,11 @@ To connect with an external MCU using UART_2, change the configuration files for
 
       * In the :file:`nrf9151dk_nrf9151_ns.conf` file::
 
-          # Use UART_0 (when working with PC terminal)
-          # unmask the following config
-          #CONFIG_UART_0_NRF_HW_ASYNC_TIMER=2
-          #CONFIG_UART_0_NRF_HW_ASYNC=y
+          # When working with PC terminal, unmask the following config.
           #CONFIG_SLM_POWER_PIN=8
           #CONFIG_SLM_INDICATE_PIN=0
 
-          # Use UART_2 (when working with external MCU)
-          # unmask the following config
-          CONFIG_UART_2_NRF_HW_ASYNC_TIMER=2
-          CONFIG_UART_2_NRF_HW_ASYNC=y
+          # When working with external MCU, unmask the following config.
           CONFIG_SLM_POWER_PIN=31
           CONFIG_SLM_INDICATE_PIN=30
 
@@ -493,17 +488,11 @@ To connect with an external MCU using UART_2, change the configuration files for
 
       * In the :file:`nrf9161dk_nrf9161_ns.conf` file::
 
-          # Use UART_0 (when working with PC terminal)
-          # unmask the following config
-          #CONFIG_UART_0_NRF_HW_ASYNC_TIMER=2
-          #CONFIG_UART_0_NRF_HW_ASYNC=y
+          # When working with PC terminal, unmask the following config.
           #CONFIG_SLM_POWER_PIN=8
           #CONFIG_SLM_INDICATE_PIN=0
 
-          # Use UART_2 (when working with external MCU)
-          # unmask the following config
-          CONFIG_UART_2_NRF_HW_ASYNC_TIMER=2
-          CONFIG_UART_2_NRF_HW_ASYNC=y
+          # When working with external MCU, unmask the following config.
           CONFIG_SLM_POWER_PIN=31
           CONFIG_SLM_INDICATE_PIN=30
 
@@ -535,17 +524,11 @@ To connect with an external MCU using UART_2, change the configuration files for
 
       * In the :file:`nrf9160dk_nrf9160_ns.conf` file::
 
-          # Use UART_0 (when working with PC terminal)
-          # unmask the following config
-          #CONFIG_UART_0_NRF_HW_ASYNC_TIMER=2
-          #CONFIG_UART_0_NRF_HW_ASYNC=y
+          # When working with PC terminal, unmask the following config.
           #CONFIG_SLM_POWER_PIN=6
           #CONFIG_SLM_INDICATE_PIN=2
 
-          # Use UART_2 (when working with external MCU)
-          # unmask the following config
-          CONFIG_UART_2_NRF_HW_ASYNC_TIMER=2
-          CONFIG_UART_2_NRF_HW_ASYNC=y
+          # When working with external MCU, unmask the following config.
           CONFIG_SLM_POWER_PIN=31
           CONFIG_SLM_INDICATE_PIN=30
 

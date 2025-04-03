@@ -11,26 +11,12 @@
 # function to avoid polluting the top-level scope.
 
 function(ncs_secure_boot_mcuboot_sign application bin_files signed_targets prefix)
+  find_program(IMGTOOL imgtool.py HINTS ${ZEPHYR_MCUBOOT_MODULE_DIR}/scripts/ NAMES imgtool NAMES_PER_DIR)
   set(keyfile "${SB_CONFIG_BOOT_SIGNATURE_KEY_FILE}")
   string(CONFIGURE "${keyfile}" keyfile)
 
-  # Find imgtool. Even though west is installed, imgtool might not be.
-  # The user may also have a custom manifest which doesn't include
-  # MCUboot.
-  #
-  # Therefore, go with an explicitly installed imgtool first, falling
-  # back on mcuboot/scripts/imgtool.py.
-  if(IMGTOOL)
-    set(imgtool_path "${IMGTOOL}")
-  elseif(DEFINED ZEPHYR_MCUBOOT_MODULE_DIR)
-    set(IMGTOOL_PY "${ZEPHYR_MCUBOOT_MODULE_DIR}/scripts/imgtool.py")
-    if(EXISTS "${IMGTOOL_PY}")
-      set(imgtool_path "${IMGTOOL_PY}")
-    endif()
-  endif()
-
   # No imgtool, no signed binaries.
-  if(NOT DEFINED imgtool_path)
+  if(NOT DEFINED IMGTOOL)
     message(FATAL_ERROR "Can't sign images for MCUboot: can't find imgtool. To fix, install imgtool with pip3, or add the mcuboot repository to the west manifest and ensure it has a scripts/imgtool.py file.")
     return()
   endif()
@@ -40,7 +26,7 @@ function(ncs_secure_boot_mcuboot_sign application bin_files signed_targets prefi
   sysbuild_get(CONFIG_BUILD_OUTPUT_HEX IMAGE ${application} VAR CONFIG_BUILD_OUTPUT_HEX KCONFIG)
 
   string(TOUPPER "${application}" application_uppercase)
-  set(imgtool_sign ${PYTHON_EXECUTABLE} ${imgtool_path} sign --version ${SB_CONFIG_SECURE_BOOT_MCUBOOT_VERSION} --align 4 --slot-size $<TARGET_PROPERTY:partition_manager,${prefix}PM_${application_uppercase}_SIZE> --pad-header --header-size ${SB_CONFIG_PM_MCUBOOT_PAD})
+  set(imgtool_sign ${PYTHON_EXECUTABLE} ${IMGTOOL} sign --version ${SB_CONFIG_SECURE_BOOT_MCUBOOT_VERSION} --align 4 --slot-size $<TARGET_PROPERTY:partition_manager,${prefix}PM_${application_uppercase}_SIZE> --pad-header --header-size ${SB_CONFIG_PM_MCUBOOT_PAD})
 
   if(SB_CONFIG_MCUBOOT_HARDWARE_DOWNGRADE_PREVENTION)
     set(imgtool_extra --security-counter ${SB_CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION_COUNTER_VALUE})
@@ -138,7 +124,7 @@ if(SB_CONFIG_BOOTLOADER_MCUBOOT)
 
     if(SB_CONFIG_SECURE_BOOT_BUILD_S1_VARIANT_IMAGE)
       ncs_secure_boot_mcuboot_sign(s1_image "${bin_files}" "${signed_targets}" "")
-      set(extra_bin_data "signed_by_mcuboot_and_b0_s1_image.binload_address=$<TARGET_PROPERTY:partition_manager,PM_S1_ADDRESS>")
+      set(extra_bin_data "signed_by_mcuboot_and_b0_s1_image.binload_address=$<TARGET_PROPERTY:partition_manager,PM_S1_ADDRESS>;signed_by_mcuboot_and_b0_s1_image.binslot=1")
     endif()
 
     if(bin_files)
@@ -156,6 +142,7 @@ if(SB_CONFIG_BOOTLOADER_MCUBOOT)
         ${extra_bin_data}
         "version_MCUBOOT=${SB_CONFIG_SECURE_BOOT_MCUBOOT_VERSION}"
         "version_B0=${mcuboot_fw_info_firmware_version}"
+        "signed_by_mcuboot_and_b0_mcuboot.binslot=0"
         DEPENDS ${signed_targets}
         )
     endif()

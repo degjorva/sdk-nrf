@@ -57,7 +57,6 @@ BUILD_ASSERT(
 #define AT_MDM_SLEEP_NOTIF_START "AT%%XMODEMSLEEP=1,%d,%d"
 #endif
 #if (defined(CONFIG_NRF_CLOUD_AGNSS) || defined(CONFIG_NRF_CLOUD_PGPS))
-#define AGNSS_REQUEST_RECV_BUF_SIZE 3500
 #define AGNSS_REQUEST_HTTPS_RESP_HEADER_SIZE 400
 /* Minimum time between two A-GNSS data requests in seconds. */
 #define AGNSS_REQUEST_MIN_INTERVAL (60 * 60)
@@ -97,7 +96,7 @@ static int64_t agnss_req_timestamp;
 #if !defined(CONFIG_LOCATION_SERVICE_EXTERNAL) && \
 	(defined(CONFIG_NRF_CLOUD_REST) || defined(CONFIG_NRF_CLOUD_COAP)) && \
 	!defined(CONFIG_NRF_CLOUD_MQTT)
-static char agnss_rest_data_buf[AGNSS_REQUEST_RECV_BUF_SIZE];
+static char agnss_rest_data_buf[NRF_CLOUD_AGNSS_MAX_DATA_SIZE];
 #endif
 #endif
 
@@ -425,19 +424,27 @@ static void method_gnss_pgps_request_work_fn(struct k_work *item)
 static bool method_gnss_agnss_required(void)
 {
 	int32_t time_since_agnss_req;
-	bool ephe_or_alm_required = false;
+	bool ephe_requested = false;
+	bool alm_requested = false;
 
 	/* Check if A-GNSS data is needed. */
 	for (int i = 0; i < agnss_request.system_count; i++) {
-		if (agnss_request.system[i].sv_mask_ephe != 0 ||
-		    agnss_request.system[i].sv_mask_alm != 0) {
-			ephe_or_alm_required = true;
-			break;
+		if (agnss_request.system[i].sv_mask_ephe != 0) {
+			ephe_requested = true;
+		}
+		if (agnss_request.system[i].sv_mask_alm != 0) {
+			alm_requested = true;
 		}
 	}
 
-	if (agnss_request.data_flags == 0 && !ephe_or_alm_required) {
+	if (!ephe_requested && !alm_requested && agnss_request.data_flags == 0) {
 		LOG_DBG("No A-GNSS data types requested");
+		return false;
+	} else if (!IS_ENABLED(CONFIG_NRF_CLOUD_PGPS) && !ephe_requested) {
+		/* No ephemerides requested and A-GNSS is used to provide ephemerides.
+		 * Skip this request and download all data with the next ephemeris request.
+		 */
+		LOG_DBG("Skipping A-GNSS request, no ephemerides requested");
 		return false;
 	}
 
@@ -551,12 +558,8 @@ static void method_gnss_assistance_request(void)
 	 * QZSS satellites always as expired.
 	 */
 	if (agnss_request.system_count > 1) {
-		if (agnss_request.data_flags != 0 ||
-		    agnss_request.system[0].sv_mask_ephe != 0 ||
-		    agnss_request.system[0].sv_mask_alm != 0) {
-			/* QZSS ephemerides are requested always when other assistance data is
-			 * needed.
-			 */
+		if (agnss_request.system[0].sv_mask_ephe != 0) {
+			/* QZSS ephemerides are requested whenever GPS ephemerides are requested. */
 			agnss_request.system[1].sv_mask_ephe = 0x3ff;
 		} else {
 			/* No other assistance is needed. Request QZSS ephemerides anyway if
@@ -1172,7 +1175,7 @@ static void method_gnss_agnss_expiry_process(const struct nrf_modem_gnss_agnss_e
 			 */
 
 			/* QZSS ephemerides are valid for a maximum of two hours, so no expiry
-			 * is used here.
+			 * threshold is used here.
 			 */
 			if (agnss_expiry->sv[i].ephe_expiry == 0) {
 				expired_qzss_ephe_mask |=

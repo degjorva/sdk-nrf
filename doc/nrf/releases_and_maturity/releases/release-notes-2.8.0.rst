@@ -466,10 +466,10 @@ Zigbee
 
 * Updated:
 
-  * :ref:`nrfxlib:zboss` to v3.11.5.0 and platform v5.1.6 (``v3.11.5.0+5.1.6``).
+  * ZBOSS Zigbee stack to v3.11.5.0 and platform v5.1.6 (``v3.11.5.0+5.1.6``).
     They contain a fix for the ZBOSS traces.
-    For details, see :ref:`zboss_changelog`.
-  * :ref:`ZBOSS Network Co-processor Host <ug_zigbee_tools_ncp_host>` package to the new version v2.2.4.
+    For details, see ZBOSS changelog.
+  * ZBOSS Network Co-processor Host package to the new version v2.2.4.
 
 * Fixed the :file:`zb_add_ota_header.py` script not being able to handle an ``APPLICATION_VERSION_STRING`` which includes a tweak, such as ``1.0.0+3``.
 
@@ -503,7 +503,7 @@ Machine learning
 Asset Tracker v2
 ----------------
 
-* Added a note that the :ref:`asset_tracker_v2` application is in the maintenance mode and that it is recommended to use the :ref:`nrf_cloud_multi_service` sample instead.
+* Added a note that the Asset Tracker v2 application is in the maintenance mode and that it is recommended to use the :ref:`nrf_cloud_multi_service` sample instead.
 
 Connectivity bridge
 -------------------
@@ -964,7 +964,7 @@ Thread samples
 Zigbee samples
 --------------
 
-* :ref:`zigbee_light_switch_sample` sample:
+* Zigbee light switch sample:
 
   * Added the option to configure transmission power.
   * Fixed the FOTA configuration for the nRF5340 DK.

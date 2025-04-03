@@ -12,9 +12,6 @@
 # Nordic 5-Clause is always allowed.
 LicenseRef-Nordic-5-Clause: ".*"
 
-# ZBOSS 4-clause is allowed only in zboss directory.
-LicenseRef-ZBOSS-4-Clause: "^nrfxlib/zboss/"
-
 # PCFT license is allowed for nRF53 Audio.
 LicenseRef-PCFT: "^nrf/applications/nrf5340_audio/"
 
@@ -36,6 +33,7 @@ none: |
 # Ignore all detected licenses in that file.
 any: |
   .*/license-texts.yaml$
+  ^nrf/subsys/nrf_compress/lzma/
 
 # Allow different licenses from external sources
 LicenseRef-west-ncs-sbom-iperf-BSD-3-Clause: "^nrf/ext/"
@@ -47,6 +45,7 @@ Apache-2.0: |
   ^nrf/tests/bluetooth/tester/src/bttester.c$
   ^nrf/subsys/nrf_security/src/legacy
   ^nrf/modules/trusted-firmware-m/fault.c
+  ^nrf/modules/openthread/
   ^nrf/samples/net/http_server/src/main.c
   ^nrf/tests/subsys/suit/common/tls_config/user-tls-conf.h
 curl: "^nrf/ext/"

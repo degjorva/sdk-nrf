@@ -262,7 +262,7 @@ The following table indicates the software maturity levels of the support for ea
      - --
      - Supported
      - Supported
-     - Experimental
+     - --
      - --
      - Supported
      - Supported
@@ -310,7 +310,7 @@ The following table indicates the software maturity levels of the support for ea
      - Supported
      - Supported
      - Supported
-     - Experimental
+     - --
      - Supported
      - Supported
      - Supported
@@ -922,7 +922,7 @@ The following table indicates the software maturity levels of the support for ea
         - Supported
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -938,7 +938,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -954,7 +954,7 @@ The following table indicates the software maturity levels of the support for ea
         - Supported
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -970,7 +970,7 @@ The following table indicates the software maturity levels of the support for ea
         - Supported
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -986,7 +986,7 @@ The following table indicates the software maturity levels of the support for ea
         - Supported
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1002,7 +1002,7 @@ The following table indicates the software maturity levels of the support for ea
         - Supported
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1018,7 +1018,7 @@ The following table indicates the software maturity levels of the support for ea
         - Supported
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1034,7 +1034,7 @@ The following table indicates the software maturity levels of the support for ea
         - Supported
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1050,7 +1050,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1066,7 +1066,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1098,7 +1098,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1144,7 +1144,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1160,7 +1160,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1176,7 +1176,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1192,7 +1192,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1208,7 +1208,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1224,7 +1224,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1240,7 +1240,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - --
         - Supported
-        - Experimental
+        - --
         - --
         - --
         - --
@@ -1256,7 +1256,7 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - Supported
         - Supported
-        - Experimental
+        - --
         - --
         - Supported
         - Supported
@@ -1736,6 +1736,8 @@ The following sections contain the tables indicating the software maturity level
 
 * Google Fast Pair
 
+.. _software_maturity_fast_pair:
+
 Google Fast Pair
 ================
 
@@ -1910,6 +1912,8 @@ The following table indicates the software maturity levels of the support for ea
         - --
         - --
 
+.. _software_maturity_security_features:
+
 Security Feature Support
 ************************
 
@@ -1921,16 +1925,20 @@ The following sections contain the tables indicating the software maturity level
 * Hardware Unique Key
 * Trusted storage
 
+.. _software_maturity_security_features_tfm:
+
 Trusted Firmware-M support
 ==========================
 
 .. toggle::
 
+   .. tfm_ncs_profiles_support_table_start
+
    .. list-table::
       :widths: auto
       :header-rows: 1
 
-      * -
+      * - TF-M profile
         - nRF52810
         - nRF52811
         - nRF52820
@@ -1946,7 +1954,7 @@ Trusted Firmware-M support
         - nRF9151
         - nRF9160
         - nRF9161
-      * - **Full build**
+      * - :ref:`Configurable <ug_tfm_supported_services_profiles_configurable>`
         - --
         - --
         - --
@@ -1962,7 +1970,7 @@ Trusted Firmware-M support
         - Experimental
         - Experimental
         - Experimental
-      * - **Minimal Build**
+      * - :ref:`Minimal <ug_tfm_supported_services_profiles_minimal>`
         - --
         - --
         - --
@@ -1980,6 +1988,12 @@ Trusted Firmware-M support
         - Supported
 
    | [1]: The attestation service is not supported.
+
+    .. tfm_ncs_profiles_support_table_end
+
+   For more information about supported TF-M features in the |NCS|, see :ref:`ug_tfm_supported_services`.
+
+.. _software_maturity_security_features_psa:
 
 PSA Crypto support
 ==================
@@ -2055,6 +2069,8 @@ PSA Crypto support
         - --
         - --
 
+.. _software_maturity_security_features_nsib:
+
 |NSIB|
 ======
 
@@ -2097,6 +2113,8 @@ PSA Crypto support
          - Supported
          - Supported
 
+.. _software_maturity_security_features_huk:
+
 Hardware Unique Key
 ===================
 
@@ -2138,6 +2156,8 @@ Hardware Unique Key
         - Supported
         - Supported
         - Supported
+
+.. _software_maturity_security_features_ts:
 
 Trusted storage
 ===============

@@ -41,6 +41,7 @@ enum slm_httpccon_operation {
 /**@brief HTTP client state */
 enum httpc_state {
 	HTTPC_INIT,
+	HTTPC_ONGOING,
 	HTTPC_REQ_DONE,
 	HTTPC_RSP_HEADER_DONE,
 	HTTPC_COMPLETE
@@ -129,7 +130,7 @@ static int headers_cb(int sock, struct http_request *req, void *user_data)
 
 	len = strlen(httpc.headers);
 	while (offset < len) {
-		ret = send(sock, httpc.headers + offset, len - offset, 0);
+		ret = zsock_send(sock, httpc.headers + offset, len - offset, 0);
 		if (ret < 0) {
 			LOG_ERR("send header fail: %d", -errno);
 			return -errno;
@@ -152,7 +153,7 @@ int do_send_payload(const uint8_t *data, int len)
 
 	/* Start to send payload */
 	while (offset < len) {
-		ret = send(httpc.fd, data + offset, len - offset, 0);
+		ret = zsock_send(httpc.fd, data + offset, len - offset, 0);
 		if (ret < 0) {
 			LOG_ERR("Fail to send payload: %d, sent: %d", ret, offset);
 			httpc.total_sent = -errno;
@@ -222,12 +223,12 @@ static int do_http_connect(void)
 
 	/* Open socket */
 	if (httpc.sec_tag == INVALID_SEC_TAG) {
-		ret = socket(httpc.family, SOCK_STREAM, IPPROTO_TCP);
+		ret = zsock_socket(httpc.family, SOCK_STREAM, IPPROTO_TCP);
 	} else {
-		ret = socket(httpc.family, SOCK_STREAM, IPPROTO_TLS_1_2);
+		ret = zsock_socket(httpc.family, SOCK_STREAM, IPPROTO_TLS_1_2);
 	}
 	if (ret < 0) {
-		LOG_ERR("socket() failed: %d", -errno);
+		LOG_ERR("zsock_socket() failed: %d", -errno);
 		return ret;
 	}
 	httpc.fd = ret;
@@ -243,7 +244,8 @@ static int do_http_connect(void)
 		int tls_native = 1;
 
 		/* Must be the first socket option to set. */
-		ret = setsockopt(httpc.fd, SOL_TLS, TLS_NATIVE, &tls_native, sizeof(tls_native));
+		ret = zsock_setsockopt(httpc.fd, SOL_TLS, TLS_NATIVE, &tls_native,
+				       sizeof(tls_native));
 		if (ret) {
 			ret = errno;
 			goto exit_cli;
@@ -251,38 +253,38 @@ static int do_http_connect(void)
 #endif
 		sec_tag_t sec_tag_list[] = { httpc.sec_tag };
 
-		ret = setsockopt(httpc.fd, SOL_TLS, TLS_SEC_TAG_LIST, sec_tag_list,
+		ret = zsock_setsockopt(httpc.fd, SOL_TLS, TLS_SEC_TAG_LIST, sec_tag_list,
 				 sizeof(sec_tag_t));
 		if (ret) {
-			LOG_ERR("setsockopt(TLS_SEC_TAG_LIST) error: %d", -errno);
+			LOG_ERR("zsock_setsockopt(TLS_SEC_TAG_LIST) error: %d", -errno);
 			ret = -errno;
 			goto exit_cli;
 		}
-		ret = setsockopt(httpc.fd, SOL_TLS, TLS_PEER_VERIFY, &httpc.peer_verify,
+		ret = zsock_setsockopt(httpc.fd, SOL_TLS, TLS_PEER_VERIFY, &httpc.peer_verify,
 				 sizeof(httpc.peer_verify));
 		if (ret) {
-			LOG_ERR("setsockopt(TLS_PEER_VERIFY) error: %d", -errno);
+			LOG_ERR("zsock_setsockopt(TLS_PEER_VERIFY) error: %d", -errno);
 			ret = -errno;
 			goto exit_cli;
 		}
 		if (httpc.hostname_verify) {
-			ret = setsockopt(httpc.fd, SOL_TLS, TLS_HOSTNAME, httpc.host,
+			ret = zsock_setsockopt(httpc.fd, SOL_TLS, TLS_HOSTNAME, httpc.host,
 					 strlen(httpc.host));
 		} else {
-			ret = setsockopt(httpc.fd, SOL_TLS, TLS_HOSTNAME, NULL, 0);
+			ret = zsock_setsockopt(httpc.fd, SOL_TLS, TLS_HOSTNAME, NULL, 0);
 		}
 		if (ret) {
-			LOG_ERR("setsockopt(TLS_HOSTNAME) error: %d", -errno);
+			LOG_ERR("zsock_setsockopt(TLS_HOSTNAME) error: %d", -errno);
 			ret = -errno;
 			goto exit_cli;
 		}
 		if (!IS_ENABLED(CONFIG_SLM_NATIVE_TLS)) {
 			int session_cache = TLS_SESSION_CACHE_ENABLED;
 
-			ret = setsockopt(httpc.fd, SOL_TLS, TLS_SESSION_CACHE, &session_cache,
+			ret = zsock_setsockopt(httpc.fd, SOL_TLS, TLS_SESSION_CACHE, &session_cache,
 					 sizeof(session_cache));
 			if (ret) {
-				LOG_ERR("setsockopt(TLS_SESSION_CACHE) error: %d", -errno);
+				LOG_ERR("zsock_setsockopt(TLS_SESSION_CACHE) error: %d", -errno);
 				ret = -errno;
 				goto exit_cli;
 			}
@@ -290,15 +292,15 @@ static int do_http_connect(void)
 	}
 
 	LOG_DBG("Configuring socket timeout (%lld s)", timeo.tv_sec);
-	ret = setsockopt(httpc.fd, SOL_SOCKET, SO_SNDTIMEO, &timeo, sizeof(timeo));
+	ret = zsock_setsockopt(httpc.fd, SOL_SOCKET, SO_SNDTIMEO, &timeo, sizeof(timeo));
 	if (ret) {
-		LOG_ERR("setsockopt(SO_SNDTIMEO) error: %d", -errno);
+		LOG_ERR("zsock_setsockopt(SO_SNDTIMEO) error: %d", -errno);
 		ret = -errno;
 		goto exit_cli;
 	}
-	ret = setsockopt(httpc.fd, SOL_SOCKET, SO_RCVTIMEO, &timeo, sizeof(timeo));
+	ret = zsock_setsockopt(httpc.fd, SOL_SOCKET, SO_RCVTIMEO, &timeo, sizeof(timeo));
 	if (ret) {
-		LOG_ERR("setsockopt(SO_SNDTIMEO) error: %d", -errno);
+		LOG_ERR("zsock_setsockopt(SO_SNDTIMEO) error: %d", -errno);
 		ret = -errno;
 		goto exit_cli;
 	}
@@ -309,13 +311,13 @@ static int do_http_connect(void)
 		goto exit_cli;
 	}
 	if (sa.sa_family == AF_INET) {
-		ret = connect(httpc.fd, &sa, sizeof(struct sockaddr_in));
+		ret = zsock_connect(httpc.fd, &sa, sizeof(struct sockaddr_in));
 	} else {
-		ret = connect(httpc.fd, &sa, sizeof(struct sockaddr_in6));
+		ret = zsock_connect(httpc.fd, &sa, sizeof(struct sockaddr_in6));
 	}
 
 	if (ret) {
-		LOG_ERR("connect() failed: %d", -errno);
+		LOG_ERR("zsock_connect() failed: %d", -errno);
 		ret = -errno;
 		goto exit_cli;
 	}
@@ -324,7 +326,7 @@ static int do_http_connect(void)
 	return 0;
 
 exit_cli:
-	close(httpc.fd);
+	zsock_close(httpc.fd);
 	httpc.fd = INVALID_SOCKET;
 	rsp_send("\r\n#XHTTPCCON: 0\r\n");
 
@@ -337,10 +339,10 @@ static int do_http_disconnect(void)
 	if (httpc.fd == INVALID_SOCKET) {
 		return 0;
 	}
-	int ret = close(httpc.fd);
+	int ret = zsock_close(httpc.fd);
 
 	if (ret) {
-		LOG_WRN("close() failed: %d", -errno);
+		LOG_WRN("zsock_close() failed: %d", -errno);
 		ret = -errno;
 	}
 	httpc.fd = INVALID_SOCKET;
@@ -518,6 +520,7 @@ static void httpc_thread_fn(void *arg1, void *arg2, void *arg3)
 	}
 
 	LOG_INF("HTTP thread terminated");
+	httpc.state = HTTPC_INIT;
 }
 
 #define HTTP_CRLF_STR "\\r\\n"
@@ -581,6 +584,11 @@ static int handle_at_httpc_request(enum at_parser_cmd_type cmd_type,
 
 	switch (cmd_type) {
 	case AT_PARSER_CMD_TYPE_SET:
+		if (httpc.state > HTTPC_INIT) {
+			LOG_ERR("Previous HTTP request is not finished.");
+			return -EEXIST;
+		}
+
 		memset(slm_data_buf, 0, sizeof(slm_data_buf));
 		/* Get method string */
 		size = HTTPC_METHOD_LEN;
@@ -641,7 +649,7 @@ static int handle_at_httpc_request(enum at_parser_cmd_type cmd_type,
 			}
 		}
 		httpc.total_sent = 0;
-		httpc.state = HTTPC_INIT;
+		httpc.state = HTTPC_ONGOING;
 		httpc.rsp_header_length = 0;
 		httpc.rsp_body_length = 0;
 		/* start http request thread */

@@ -18,6 +18,27 @@ extern "C" {
 
 struct sxhash;
 
+#define SX_HASH_DIGESTSZ_SHA3_224 28
+#define SX_HASH_DIGESTSZ_SHA3_256 32
+#define SX_HASH_DIGESTSZ_SHA3_384 48
+#define SX_HASH_DIGESTSZ_SHA3_512 64
+#define SX_HASH_BLOCKSZ_SHA3_224 144
+#define SX_HASH_BLOCKSZ_SHA3_256 136
+#define SX_HASH_BLOCKSZ_SHA3_384 104
+#define SX_HASH_BLOCKSZ_SHA3_512 72
+
+
+#if SX_HASH_DIGESTSZ_MAX < SX_HASH_DIGESTSZ_SHA3_512
+#undef SX_HASH_DIGESTSZ_MAX
+#define SX_HASH_DIGESTSZ_MAX SX_HASH_DIGESTSZ_SHA3_512
+#endif
+
+
+#if SX_HASH_BLOCKSZ_MAX < SX_HASH_BLOCKSZ_SHA3_224
+#undef SX_HASH_BLOCKSZ_MAX
+#define SX_HASH_BLOCKSZ_MAX SX_HASH_BLOCKSZ_SHA3_224
+#endif
+
 /** Hash algorithm SHA-3 224 */
 extern const struct sxhashalg sxhashalg_sha3_224;
 
@@ -30,7 +51,7 @@ extern const struct sxhashalg sxhashalg_sha3_384;
 /** Hash algorithm SHA-3 512*/
 extern const struct sxhashalg sxhashalg_sha3_512;
 
-/** Hash algorithm SHAKE256, with output size fixed to 114 bytes (for ED448). */
+/** Hash algorithm SHAKE256, with output size fixed to 114 bytes (for Ed448). */
 extern const struct sxhashalg sxhashalg_shake256_114;
 
 /** Creates a SHA3-224 hash operation context

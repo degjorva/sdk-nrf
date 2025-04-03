@@ -171,10 +171,7 @@ The nRF Desktop peripheral can be built with Google `Fast Pair`_ support.
 The configurations that enable Fast Pair are specified in the files with filenames ending with the ``fast_pair`` and ``release_fast_pair`` suffixes.
 
 .. note::
-   The Fast Pair integration in the nRF Desktop is :ref:`experimental <software_maturity>`.
-   The factory reset of the Fast Pair non-volatile data is not yet supported.
-
-   The Fast Pair support in the |NCS| is :ref:`experimental <software_maturity>`.
+   Both the Fast Pair integration in the nRF Desktop and the Fast Pair support in the |NCS| for the HID use case are :ref:`experimental <software_maturity_fast_pair>`.
    See :ref:`ug_bt_fast_pair` for details.
 
 These configurations support multiple bonds for each Bluetooth local identity (:kconfig:option:`CONFIG_CAF_BLE_STATE_MAX_LOCAL_ID_BONDS` is set to ``3``) and erase advertising (:ref:`CONFIG_DESKTOP_BLE_PEER_ERASE <config_desktop_app_options>`), but Bluetooth peer selection (:ref:`CONFIG_DESKTOP_BLE_PEER_SELECT <config_desktop_app_options>`) is disabled.
@@ -201,7 +198,9 @@ After a successful erase advertising procedure, the peripheral removes all of th
 
 Apart from that, the following changes are applied in configurations that support Fast Pair:
 
-* The ``SB_CONFIG_BT_FAST_PAIR`` Kconfig option is enabled in the sysbuild configuration.
+* The ``SB_CONFIG_BT_FAST_PAIR_MODEL_ID`` and ``SB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY`` Kconfig options are set in the sysbuild configuration to generate the hex file with Fast Pair provisioning data.
+  These Kconfig options are configured to represent the Nordic device models that are intended for demonstration purposes.
+* The :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option is enabled in the main (default) image configuration.
   For more details about enabling Fast Pair for your application, see the :ref:`ug_bt_fast_pair_prerequisite_ops_kconfig` section in the Fast Pair integration guide.
 * The static :ref:`partition_manager` configuration is modified to introduce a dedicated non-volatile memory partition used to store the Fast Pair provisioning data.
 * Bluetooth privacy feature (:kconfig:option:`CONFIG_BT_PRIVACY`) is enabled.

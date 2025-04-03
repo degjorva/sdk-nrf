@@ -8,29 +8,31 @@
 
 #include <zephyr/kernel.h>
 
-#include "../hw/ba414/regs_addr.h"
-#include <silexpk/core.h>
-#include "../hw/ba414/pkhardware_ba414e.h"
-#include <cracen/interrupts.h>
-#include <cracen/statuscodes.h>
 #include "../hw/ba414/ba414_status.h"
+#include "../hw/ba414/pkhardware_ba414e.h"
+#include "../hw/ba414/regs_addr.h"
 #include "../hw/ik/ikhardware.h"
 #include "../hw/ik/regs_addr.h"
+#include <silexpk/core.h>
+#include <silexpk/iomem.h>
+#include <cracen/interrupts.h>
+#include <cracen/statuscodes.h>
 #include "internal.h"
 
 #include <hal/nrf_cracen.h>
 #include <security/cracen.h>
 #include <nrf_security_mutexes.h>
 
+#if CONFIG_CRACEN_HW_VERSION_LITE && !CONFIG_SOC_NRF54L20 && !CONFIG_SOC_NRF54L09
+#error Check to see if the current board needs the IKG-PKE interrupt workaround or not, \
+then update this error
+#endif
+
 #ifndef ADDR_BA414EP_REGS_BASE
 #define ADDR_BA414EP_REGS_BASE CRACEN_ADDR_BA414EP_REGS_BASE
 #endif
 #ifndef ADDR_BA414EP_CRYPTORAM_BASE
 #define ADDR_BA414EP_CRYPTORAM_BASE CRACEN_ADDR_BA414EP_CRYPTORAM_BASE
-#endif
-
-#ifndef SX_PK_MICROCODE_ADDRESS
-#define SX_PK_MICROCODE_ADDRESS CRACEN_SX_PK_MICROCODE_ADDRESS
 #endif
 
 #ifndef NULL
@@ -50,7 +52,7 @@ struct sx_pk_cnx {
 	struct sx_pk_blinder *b;
 };
 
-struct sx_pk_cnx silex_pk_engine;
+static struct sx_pk_cnx silex_pk_engine;
 
 NRF_SECURITY_MUTEX_DEFINE(cracen_mutex_asymmetric);
 
@@ -95,9 +97,15 @@ int read_status(sx_pk_req *req)
 int sx_pk_wait(sx_pk_req *req)
 {
 	do {
+#ifndef CONFIG_CRACEN_HW_VERSION_LITE
+		/* In CRACEN Lite the PKE-IKG interrupt is only active when in PK mode.
+		 * This is to work around a hardware issue where the interrupt is never cleared.
+		 * Therefore sx_pk_wait needs to use polling and not interrupts for CRACEN Lite.
+		 */
 		if (!sx_pk_is_ik_cmd(req)) {
 			cracen_wait_for_pke_interrupt();
 		}
+#endif
 	} while (is_busy(req));
 
 	return read_status(req);
@@ -107,9 +115,12 @@ void sx_pk_wrreg(struct sx_regs *regs, uint32_t addr, uint32_t v)
 {
 	volatile uint32_t *p = (uint32_t *)(regs->base + addr);
 
-#ifdef INSTRUMENT_MMIO_WITH_PRINTFS
-	printk("sx_pk_wrreg(addr=0x%x, sum=0x%x, val=0x%x);\r\n", addr, (uint32_t)p, v);
+#ifdef SX_INSTRUMENT_MMIO_WITH_PRINTFS
+	printk("sx_pk_wrreg(addr=0x%x, p=%p, val=0x%x)\r\n", addr, p, v);
 #endif
+	if ((uintptr_t)p % 4) {
+		SX_WARN_UNALIGNED_ADDR(p);
+	}
 
 	*p = v;
 }
@@ -119,10 +130,17 @@ uint32_t sx_pk_rdreg(struct sx_regs *regs, uint32_t addr)
 	volatile uint32_t *p = (uint32_t *)(regs->base + addr);
 	uint32_t v;
 
+
+#ifdef SX_INSTRUMENT_MMIO_WITH_PRINTFS
+	printk("sx_pk_rdreg(addr=0x%x, p=%p)\r\n", addr, p);
+#endif
+	if ((uintptr_t)p % 4) {
+		SX_WARN_UNALIGNED_ADDR(p);
+	}
+
 	v = *p;
 
-#ifdef INSTRUMENT_MMIO_WITH_PRINTFS
-	printk("sx_pk_rdreg(addr=0x%x, sum=0x%x);\r\n", addr, (uint32_t)p);
+#ifdef SX_INSTRUMENT_MMIO_WITH_PRINTFS
 	printk("result = 0x%x\r\n", v);
 #endif
 
@@ -189,7 +207,13 @@ struct sx_pk_acq_req sx_pk_acquire_req(const struct sx_pk_cmd_def *cmd)
 	req.req->cnx = &silex_pk_engine;
 
 	cracen_acquire();
+#ifndef CONFIG_CRACEN_HW_VERSION_LITE
+	/* In CRACEN Lite the PKE-IKG interrupt is only active when in PK mode.
+	 * This is to work around a hardware issue where the interrupt is never cleared.
+	 * Therefore it is not enabled here for Cracen Lite.
+	 */
 	nrf_cracen_int_enable(NRF_CRACEN, NRF_CRACEN_INT_PKE_IKG_MASK);
+#endif
 
 	/* Wait until initialized. */
 	while (ba414ep_is_busy(req.req) || ik_is_busy(req.req)) {

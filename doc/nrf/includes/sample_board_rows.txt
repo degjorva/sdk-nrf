@@ -128,10 +128,6 @@
 
 | nRF52832 Desktop Mouse | PCA20044 | nrf52dmouse | ``nrf52dmouse/nrf52832`` |
 
-.. nrf52810dmouse_nrf52810
-
-| nRF52810 Desktop Mouse | PCA20045 | nrf52810dmouse | ``nrf52810dmouse/nrf52810`` |
-
 .. thingy91_nrf52840
 
 | :ref:`Thingy:91 <ug_thingy91>` | PCA20035 | thingy91 | ``thingy91/nrf52840`` |
@@ -247,3 +243,7 @@
 .. nrf54l15dk_nrf54l15_cpuflpr
 
 | :ref:`nRF54L15 DK <ug_nrf54l>` | PCA10156 | :ref:`nrf54l15dk <zephyr:nrf54l15dk_nrf54l15>` | ``nrf54l15dk/nrf54l15/cpuflpr`` |
+
+.. nrf54l20pdk_nrf54l20_cpuapp
+
+| nRF54L20 PDK |   | :ref:`nrf54l20pdk <zephyr:nrf54l20pdk_nrf54l20>` | ``nrf54l20pdk/nrf54l20/cpuapp`` |

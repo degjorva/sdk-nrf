@@ -12,7 +12,7 @@ This page is included only in the latest documentation, because it might contain
    A "99" at the end of the version number of this documentation indicates continuous updates on the main branch since the previous major.minor release.
    When looking at this latest documentation, be aware of the following aspects:
 
-   * Changes between releases are tracked on the :ref:`ncs_release_notes_changelog` page, but the main branch might contain additional changes that are not listed on that page.
+   * Changes between releases are tracked on the :ref:`ncs_release_notes_changelog` page, but the main branch might contain additional changes that are not yet listed on that page.
    * The release note pages that are available in the latest documentation might differ slightly from the release notes that were included in the respective |NCS| release at its release date.
      Therefore, to see the official version of the release notes for a specific |NCS| release, switch to the documentation for the corresponding |NCS| version using the selector in the upper left corner.
 
@@ -21,12 +21,18 @@ This page is included only in the latest documentation, because it might contain
    :caption: Subpages:
 
    releases/release-notes-changelog
-   releases/release-notes-2.9.0-nrf54h20-rc1
+   releases/release-notes-3.0.0-preview2
+   releases/release-notes-3.0.0-preview1
+   releases/release-notes-2.9.1
+   releases/release-notes-2.9.0-nRF54H20-1
    releases/release-notes-2.9.0
    releases/release-notes-2.8.0
+   releases/release-notes-2.8.0-preview1
    releases/release-notes-2.7.99-cs2
    releases/release-notes-2.7.99-cs1
    releases/release-notes-2.7.0
+   releases/release-notes-2.6.4
+   releases/release-notes-2.6.3
    releases/release-notes-2.6.2
    releases/release-notes-2.6.99-cs2
    releases/release-notes-2.6.99-cs1

@@ -76,16 +76,6 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
   cmake_parse_arguments(PRE_CMAKE "" "" "IMAGES" ${ARGN})
   restore_ncs_vars()
 
-  if(NOT SB_CONFIG_PARTITION_MANAGER)
-    # Disable any Kconfigs for child images in the main application
-    foreach(config NCS_SAMPLE_EMPTY_APP_CORE_CHILD_IMAGE NCS_INCLUDE_RPMSG_CHILD_IMAGE NCS_SAMPLE_REMOTE_SHELL_CHILD_IMAGE
-            NCS_SAMPLE_DTM_REMOTE_HCI_CHILD_IMAGE NCS_SAMPLE_PERIPHERAL_RADIO_TEST_CHILD_IMAGE B0_BUILD_STRATEGY_USE_HEX_FILE
-            B0_BUILD_STRATEGY_SKIP_BUILD B0_BUILD_STRATEGY_FROM_SOURCE PM_SINGLE_IMAGE MCUBOOT_BUILD_STRATEGY_USE_HEX_FILE
-            MCUBOOT_BUILD_STRATEGY_SKIP_BUILD MCUBOOT_BUILD_STRATEGY_FROM_SOURCE)
-      set_config_bool(${DEFAULT_IMAGE} CONFIG_${config} n)
-    endforeach()
-  endif()
-
   foreach(image ${PRE_CMAKE_IMAGES})
     if(SB_CONFIG_PARTITION_MANAGER)
       set_config_bool(${image} CONFIG_PARTITION_MANAGER_ENABLED y)
@@ -177,11 +167,10 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
     endif()
 
     math(EXPR mcuboot_total_images "${SB_CONFIG_MCUBOOT_UPDATEABLE_IMAGES} + ${SB_CONFIG_MCUBOOT_ADDITIONAL_UPDATEABLE_IMAGES}")
-
-    set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_UPDATEABLE_IMAGE_NUMBER=${mcuboot_total_images}\n")
+    set_config_int(mcuboot CONFIG_UPDATEABLE_IMAGE_NUMBER ${mcuboot_total_images})
 
     if(SB_CONFIG_MCUBOOT_APP_SYNC_UPDATEABLE_IMAGES)
-      set_property(TARGET ${DEFAULT_IMAGE} APPEND_STRING PROPERTY CONFIG "CONFIG_UPDATEABLE_IMAGE_NUMBER=${SB_CONFIG_MCUBOOT_UPDATEABLE_IMAGES}\n")
+      set_config_int(${DEFAULT_IMAGE} CONFIG_UPDATEABLE_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_UPDATEABLE_IMAGES})
     endif()
 
     # Set MCUboot operating mode in application and MCUboot
@@ -231,40 +220,45 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
     endforeach()
 
     # The NRF54LX goes with PSA crypto by default
-    if(SB_CONFIG_SOC_SERIES_NRF54LX AND SB_CONFIG_BOOT_SIGNATURE_TYPE_ED25519)
-      set_config_bool(mcuboot CONFIG_NRF_SECURITY y)
-      set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_SIGNATURE_TYPE_ED25519 y)
-      set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_USES_SHA512 y)
+    if(SB_CONFIG_SOC_SERIES_NRF54LX)
+      if(SB_CONFIG_BOOT_SIGNATURE_TYPE_ED25519)
+        set_config_bool(mcuboot CONFIG_NRF_SECURITY y)
+        set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_SIGNATURE_TYPE_ED25519 y)
+        set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_USES_SHA512 y)
 
-      # We are sure that ED25519 signature on MCUboot does not need these
-      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_CIPHER_DRIVER n)
-      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_AEAD_DRIVER n)
-      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_MAC_DRIVER n)
-      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_KEY_AGREEMENT_DRIVER n)
-      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_PAKE_DRIVER n)
-      set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_KEY_DERIVATION_DRIVER n)
+        # We are sure that ED25519 signature on MCUboot does not need these
+        set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_CIPHER_DRIVER n)
+        set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_AEAD_DRIVER n)
+        set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_MAC_DRIVER n)
+        set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_KEY_AGREEMENT_DRIVER n)
+        set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_PAKE_DRIVER n)
+        set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_KEY_DERIVATION_DRIVER n)
 
-      if(SB_CONFIG_MCUBOOT_SIGNATURE_USING_KMU)
-        set_config_bool(mcuboot CONFIG_BOOT_SIGNATURE_USING_KMU y)
+        if(SB_CONFIG_MCUBOOT_SIGNATURE_USING_KMU)
+          set_config_bool(mcuboot CONFIG_BOOT_SIGNATURE_USING_KMU y)
+        else()
+          set_config_bool(mcuboot CONFIG_BOOT_SIGNATURE_USING_KMU n)
+        endif()
+
+        if(SB_CONFIG_BOOT_SIGNATURE_TYPE_PURE)
+          set_config_bool(mcuboot CONFIG_BOOT_SIGNATURE_TYPE_PURE y)
+          set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_SIGNATURE_TYPE_PURE y)
+        else()
+          set_config_bool(mcuboot CONFIG_BOOT_SIGNATURE_TYPE_PURE n)
+          set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_SIGNATURE_TYPE_PURE n)
+        endif()
+
+        # MCUboot uses hash function to identify key internally when KMU is disabled.
+        if(SB_CONFIG_MCUBOOT_SIGNATURE_USING_KMU AND SB_CONFIG_BOOT_SIGNATURE_TYPE_PURE)
+          set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_HASH_DRIVER n)
+          set_config_bool(mcuboot CONFIG_BOOT_IMG_HASH_ALG_SHA512 n)
+        else()
+          set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_HASH_DRIVER y)
+          set_config_bool(mcuboot CONFIG_BOOT_IMG_HASH_ALG_SHA512 y)
+        endif()
       else()
-        set_config_bool(mcuboot CONFIG_BOOT_SIGNATURE_USING_KMU n)
-      endif()
-
-      if(SB_CONFIG_BOOT_SIGNATURE_TYPE_PURE)
-        set_config_bool(mcuboot CONFIG_BOOT_SIGNATURE_TYPE_PURE y)
-        set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_SIGNATURE_TYPE_PURE y)
-      else()
-        set_config_bool(mcuboot CONFIG_BOOT_SIGNATURE_TYPE_PURE n)
-        set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_SIGNATURE_TYPE_PURE n)
-      endif()
-
-      # MCUboot uses hash function to identify key internally when KMU is disabled.
-      if(SB_CONFIG_MCUBOOT_SIGNATURE_USING_KMU AND SB_CONFIG_BOOT_SIGNATURE_TYPE_PURE)
-        set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_HASH_DRIVER n)
-        set_config_bool(mcuboot CONFIG_BOOT_IMG_HASH_ALG_SHA512 n)
-      else()
-        set_config_bool(mcuboot CONFIG_PSA_USE_CRACEN_HASH_DRIVER y)
-        set_config_bool(mcuboot CONFIG_BOOT_IMG_HASH_ALG_SHA512 y)
+        set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_SIGNATURE_TYPE_ED25519 n)
+        set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_BOOTLOADER_USES_SHA512 n)
       endif()
     endif()
 
@@ -281,10 +275,7 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
         )
 
       # Add fault injection protection to MCUBOOT
-      add_overlay_config(
-        mcuboot
-        ${ZEPHYR_NRF_MODULE_DIR}/modules/mcuboot/fih_low_enable.conf
-      )
+      set_config_bool(mcuboot CONFIG_BOOT_FIH_PROFILE_DEFAULT_LOW y)
     endif()
 
     if(SB_CONFIG_PARTITION_MANAGER)
@@ -361,11 +352,11 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
       endif()
 
       # Provide MCUboot image IDs to main application and MCUboot
-      set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_APPLICATION_IMAGE_NUMBER=${SB_CONFIG_MCUBOOT_APPLICATION_IMAGE_NUMBER}\n")
-      set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_NETWORK_CORE_IMAGE_NUMBER=${SB_CONFIG_MCUBOOT_NETWORK_CORE_IMAGE_NUMBER}\n")
-      set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_WIFI_PATCHES_IMAGE_NUMBER=${SB_CONFIG_MCUBOOT_WIFI_PATCHES_IMAGE_NUMBER}\n")
-      set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_QSPI_XIP_IMAGE_NUMBER=${SB_CONFIG_MCUBOOT_QSPI_XIP_IMAGE_NUMBER}\n")
-      set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_MCUBOOT_IMAGE_NUMBER=${SB_CONFIG_MCUBOOT_MCUBOOT_IMAGE_NUMBER}\n")
+      set_config_int(mcuboot CONFIG_MCUBOOT_APPLICATION_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_APPLICATION_IMAGE_NUMBER})
+      set_config_int(mcuboot CONFIG_MCUBOOT_NETWORK_CORE_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_NETWORK_CORE_IMAGE_NUMBER})
+      set_config_int(mcuboot CONFIG_MCUBOOT_WIFI_PATCHES_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_WIFI_PATCHES_IMAGE_NUMBER})
+      set_config_int(mcuboot CONFIG_MCUBOOT_QSPI_XIP_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_QSPI_XIP_IMAGE_NUMBER})
+      set_config_int(mcuboot CONFIG_MCUBOOT_MCUBOOT_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_MCUBOOT_IMAGE_NUMBER})
 
       if(SB_CONFIG_SECURE_BOOT_APPCORE)
         # Get the s0/s1 MCUboot update package version and split it up into the fields so it can
@@ -378,10 +369,10 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
         list(GET s0_s1_package_version 2 s0_s1_package_version_revision)
         list(GET s0_s1_package_version 3 s0_s1_package_version_build_number)
 
-        set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_MAJOR=${s0_s1_package_version_major}\n")
-        set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_MINOR=${s0_s1_package_version_minor}\n")
-        set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_REVISION=${s0_s1_package_version_revision}\n")
-        set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_BUILD_NUMBER=${s0_s1_package_version_build_number}\n")
+        set_config_int(mcuboot CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_MAJOR ${s0_s1_package_version_major})
+        set_config_int(mcuboot CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_MINOR ${s0_s1_package_version_minor})
+        set_config_int(mcuboot CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_REVISION ${s0_s1_package_version_revision})
+        set_config_int(mcuboot CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_BUILD_NUMBER ${s0_s1_package_version_build_number})
 
         set(s0_s1_package_version)
         set(s0_s1_package_version_major)
@@ -389,22 +380,23 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
         set(s0_s1_package_version_revision)
         set(s0_s1_package_version_build_number)
       else()
-        set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_MAJOR=-1\n")
-        set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_MINOR=-1\n")
-        set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_REVISION=-1\n")
-        set_property(TARGET mcuboot APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_BUILD_NUMBER=-1\n")
+        set_config_int(mcuboot CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_MAJOR -1)
+        set_config_int(mcuboot CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_MINOR -1)
+        set_config_int(mcuboot CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_REVISION -1)
+        set_config_int(mcuboot CONFIG_MCUBOOT_MCUBOOT_S0_S1_VERSION_BUILD_NUMBER -1)
       endif()
 
-      set_property(TARGET ${DEFAULT_IMAGE} APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_APPLICATION_IMAGE_NUMBER=${SB_CONFIG_MCUBOOT_APPLICATION_IMAGE_NUMBER}\n")
-      set_property(TARGET ${DEFAULT_IMAGE} APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_NETWORK_CORE_IMAGE_NUMBER=${SB_CONFIG_MCUBOOT_NETWORK_CORE_IMAGE_NUMBER}\n")
-      set_property(TARGET ${DEFAULT_IMAGE} APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_WIFI_PATCHES_IMAGE_NUMBER=${SB_CONFIG_MCUBOOT_WIFI_PATCHES_IMAGE_NUMBER}\n")
-      set_property(TARGET ${DEFAULT_IMAGE} APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_QSPI_XIP_IMAGE_NUMBER=${SB_CONFIG_MCUBOOT_QSPI_XIP_IMAGE_NUMBER}\n")
+      set_config_int(${DEFAULT_IMAGE} CONFIG_MCUBOOT_APPLICATION_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_APPLICATION_IMAGE_NUMBER})
+      set_config_int(${DEFAULT_IMAGE} CONFIG_MCUBOOT_NETWORK_CORE_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_NETWORK_CORE_IMAGE_NUMBER})
+      set_config_int(${DEFAULT_IMAGE} CONFIG_MCUBOOT_WIFI_PATCHES_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_WIFI_PATCHES_IMAGE_NUMBER})
+      set_config_int(${DEFAULT_IMAGE} CONFIG_MCUBOOT_QSPI_XIP_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_QSPI_XIP_IMAGE_NUMBER})
+      set_config_int(${DEFAULT_IMAGE} CONFIG_MCUBOOT_MCUBOOT_IMAGE_NUMBER ${SB_CONFIG_MCUBOOT_MCUBOOT_IMAGE_NUMBER})
     endif()
 
     if(SB_CONFIG_MCUBOOT_HARDWARE_DOWNGRADE_PREVENTION)
       set_config_bool(${DEFAULT_IMAGE} CONFIG_MCUBOOT_HARDWARE_DOWNGRADE_PREVENTION y)
-      set_property(TARGET ${DEFAULT_IMAGE} APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION_COUNTER_SLOTS=${SB_CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION_COUNTER_SLOTS}\n")
-      set_property(TARGET ${DEFAULT_IMAGE} APPEND_STRING PROPERTY CONFIG "CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION_COUNTER_VALUE=${SB_CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION_COUNTER_VALUE}\n")
+      set_config_int(${DEFAULT_IMAGE} CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION_COUNTER_SLOTS ${SB_CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION_COUNTER_SLOTS})
+      set_config_int(${DEFAULT_IMAGE} CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION_COUNTER_VALUE ${SB_CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION_COUNTER_VALUE})
 
       set_config_bool(mcuboot CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION y)
       set_config_bool(mcuboot CONFIG_SECURE_BOOT_STORAGE y)
@@ -469,10 +461,14 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
       set_config_bool(mcuboot CONFIG_FW_INFO y)
 
       if(SB_CONFIG_BOOT_SIGNATURE_TYPE_ECDSA_P256)
-        add_overlay_config(
-          mcuboot
-          ${ZEPHYR_MCUBOOT_MODULE_DIR}/boot/zephyr/external_crypto.conf
-          )
+        if(SB_CONFIG_SOC_SERIES_NRF54LX)
+          set_config_bool(mcuboot CONFIG_BOOT_ECDSA_TINYCRYPT y)
+        else()
+          add_overlay_config(
+            mcuboot
+            ${ZEPHYR_MCUBOOT_MODULE_DIR}/boot/zephyr/external_crypto.conf
+            )
+        endif()
       else()
         message(WARNING "MCUboot and secure boot (application core) are enabled but MCUboot signing key type is not set to ECDSA-P256, this is a non-optimal configuration")
       endif()
@@ -480,11 +476,62 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
       set_config_bool(${DEFAULT_IMAGE} CONFIG_SECURE_BOOT y)
       set_config_bool(${DEFAULT_IMAGE} CONFIG_FW_INFO y)
     endif()
+
+    # Apply configuration for hashing
+    if(SB_CONFIG_SECURE_BOOT_HASH_TYPE_SHA256 AND NOT SB_CONFIG_SECURE_BOOT_APPCORE_HASH_TYPE_NONE)
+      if(SB_CONFIG_SECURE_BOOT_APPCORE_HASH_TYPE_HARDWARE)
+        set_config_bool(b0 CONFIG_SB_CRYPTO_CC310_SHA256 y)
+      elseif(SB_CONFIG_SECURE_BOOT_APPCORE_HASH_TYPE_SOFTWARE)
+        set_config_bool(b0 CONFIG_SB_CRYPTO_OBERON_SHA256 y)
+      elseif(SB_CONFIG_SECURE_BOOT_APPCORE_HASH_TYPE_UNUSED)
+        set_config_bool(b0 CONFIG_SB_CRYPTO_NO_SHA256 y)
+      endif()
+    elseif(SB_CONFIG_SECURE_BOOT_HASH_TYPE_NONE OR SB_CONFIG_SECURE_BOOT_APPCORE_HASH_TYPE_NONE)
+      set_config_bool(b0 CONFIG_SB_CRYPTO_NONE y)
+    endif()
+
+    if(SB_CONFIG_SECURE_BOOT_SIGNATURE_TYPE_ED25519)
+      if(SB_CONFIG_SECURE_BOOT_APPCORE_SIGNATURE_TYPE_HARDWARE)
+        set_config_bool(b0 CONFIG_NRF_SECURITY y)
+        set_config_bool(b0 CONFIG_SB_CRYPTO_PSA_ED25519 y)
+      endif()
+    elseif(SB_CONFIG_SECURE_BOOT_SIGNATURE_TYPE_ECDSA)
+      if(SB_CONFIG_SECURE_BOOT_APPCORE_SIGNATURE_TYPE_HARDWARE)
+        set_config_bool(b0 CONFIG_SB_CRYPTO_CC310_ECDSA_SECP256R1 y)
+      elseif(SB_CONFIG_SECURE_BOOT_APPCORE_SIGNATURE_TYPE_SOFTWARE)
+        set_config_bool(b0 CONFIG_SB_CRYPTO_OBERON_ECDSA_SECP256R1 y)
+      elseif(SB_CONFIG_SECURE_BOOT_APPCORE_SIGNATURE_TYPE_UNUSED)
+        set_config_bool(b0 CONFIG_SB_CRYPTO_NO_ECDSA_SECP256R1 y)
+      endif()
+    endif()
+  endif()
+
+  if(SB_CONFIG_SECURE_BOOT_BOOTCONF_LOCK_WRITES)
+    set_config_bool(b0 CONFIG_FPROTECT_ALLOW_COMBINED_REGIONS n)
   endif()
 
   if(SB_CONFIG_SECURE_BOOT_NETCORE)
     if(NOT SB_CONFIG_NETCORE_NONE)
       set_config_bool(${SB_CONFIG_NETCORE_IMAGE_NAME} CONFIG_SECURE_BOOT y)
+    endif()
+
+    # Apply configuration for hashing
+    if(SB_CONFIG_SECURE_BOOT_HASH_TYPE_SHA256 AND NOT SB_CONFIG_SECURE_BOOT_NETCORE_HASH_TYPE_NONE)
+      if(SB_CONFIG_SECURE_BOOT_NETCORE_HASH_TYPE_SOFTWARE)
+        set_config_bool(b0n CONFIG_SB_CRYPTO_OBERON_SHA256 y)
+      elseif(SB_CONFIG_SECURE_BOOT_NETCORE_HASH_TYPE_UNUSED)
+        set_config_bool(b0n CONFIG_SB_CRYPTO_NO_SHA256 y)
+      endif()
+    elseif(SB_CONFIG_SECURE_BOOT_HASH_TYPE_NONE OR SB_CONFIG_SECURE_BOOT_NETCORE_HASH_TYPE_NONE)
+      set_config_bool(b0n CONFIG_SB_CRYPTO_NONE y)
+    endif()
+
+    if(SB_CONFIG_SECURE_BOOT_SIGNATURE_TYPE_ECDSA)
+      if(SB_CONFIG_SECURE_BOOT_NETCORE_SIGNATURE_TYPE_SOFTWARE)
+        set_config_bool(b0n CONFIG_SB_CRYPTO_OBERON_ECDSA_SECP256R1 y)
+      elseif(SB_CONFIG_SECURE_BOOT_NETCORE_SIGNATURE_TYPE_UNUSED)
+        set_config_bool(b0n CONFIG_SB_CRYPTO_NO_ECDSA_SECP256R1 y)
+      endif()
     endif()
 
     if(SB_CONFIG_BOOTLOADER_MCUBOOT)
@@ -512,21 +559,9 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
     set_config_bool(mcuboot CONFIG_PCD_APP n)
   endif()
 
-  if(SB_CONFIG_BT_FAST_PAIR)
-    set_config_bool(${DEFAULT_IMAGE} CONFIG_BT_FAST_PAIR y)
-
-    if(DEFINED FP_MODEL_ID AND DEFINED FP_ANTI_SPOOFING_KEY)
-      if(SB_CONFIG_PARTITION_MANAGER)
-        include(${ZEPHYR_NRF_MODULE_DIR}/cmake/sysbuild/fast_pair_hex.cmake)
-      endif()
-
-      set(FP_DATA_PRESENT "y" CACHE INTERNAL "Fast Pair provisioning data provided" FORCE)
-    else()
-      message(WARNING "Fast Pair support is enabled but `FP_MODEL_ID` or `FP_ANTI_SPOOFING_KEY` were not provided, this is likely to cause a build error")
-      set(FP_DATA_PRESENT "n" CACHE INTERNAL "Fast Pair provisioning data provided" FORCE)
-    endif()
-  else()
-    set_config_bool(${DEFAULT_IMAGE} CONFIG_BT_FAST_PAIR n)
+  if(SB_CONFIG_BT_FAST_PAIR_PROV_DATA AND SB_CONFIG_PARTITION_MANAGER)
+    # The PM properties for the Fast Pair hex file must be set in the pre-CMake stage.
+    include(${ZEPHYR_NRF_MODULE_DIR}/cmake/sysbuild/fast_pair/hex.cmake)
   endif()
 
   if(SB_CONFIG_WIFI_NRF70)
@@ -579,8 +614,8 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
     include_sdp()
   endif()
 
-  if(SB_CONFIG_APPROTECT_USE_UICR OR SB_CONFIG_APPROTECT_LOCK OR SB_CONFIG_APPROTECT_USER_HANDLING OR
-     SB_CONFIG_SECURE_APPROTECT_USE_UICR OR SB_CONFIG_SECURE_APPROTECT_LOCK OR SB_CONFIG_SECURE_APPROTECT_USER_HANDLING)
+  if(SB_CONFIG_APPROTECT_USE_UICR OR SB_CONFIG_APPROTECT_LOCK OR SB_CONFIG_APPROTECT_USER_HANDLING OR SB_CONFIG_APPROTECT_DISABLE OR
+     SB_CONFIG_SECURE_APPROTECT_USE_UICR OR SB_CONFIG_SECURE_APPROTECT_LOCK OR SB_CONFIG_SECURE_APPROTECT_USER_HANDLING OR SB_CONFIG_SECURE_APPROTECT_DISABLE)
     # Apply APPROTECT configuration to target images
     if(SB_CONFIG_APPROTECT_USE_UICR)
       set(normal_approtect CONFIG_NRF_APPROTECT_USE_UICR)
@@ -588,6 +623,8 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
       set(normal_approtect CONFIG_NRF_APPROTECT_LOCK)
     elseif(SB_CONFIG_APPROTECT_USER_HANDLING)
       set(normal_approtect CONFIG_NRF_APPROTECT_USER_HANDLING)
+    elseif(SB_CONFIG_APPROTECT_DISABLE)
+      set(normal_approtect CONFIG_NRF_APPROTECT_DISABLE)
     endif()
 
     if(SB_CONFIG_SECURE_APPROTECT_USE_UICR)
@@ -596,6 +633,8 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
       set(secure_approtect CONFIG_NRF_SECURE_APPROTECT_LOCK)
     elseif(SB_CONFIG_SECURE_APPROTECT_USER_HANDLING)
       set(secure_approtect CONFIG_NRF_SECURE_APPROTECT_USER_HANDLING)
+    elseif(SB_CONFIG_SECURE_APPROTECT_DISABLE)
+      set(secure_approtect CONFIG_NRF_SECURE_APPROTECT_DISABLE)
     endif()
 
     if(SB_CONFIG_SUPPORT_NETCORE AND NOT SB_CONFIG_NETCORE_NONE)
@@ -603,13 +642,19 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
     endif()
 
     foreach(image ${IMAGES})
-      if(secure_approtect AND SB_CONFIG_SUPPORT_NETCORE AND NOT SB_CONFIG_NETCORE_NONE AND ${image} IN_LIST network_images)
+      if(SB_CONFIG_SUPPORT_NETCORE AND NOT SB_CONFIG_NETCORE_NONE AND ${image} IN_LIST network_images)
         # Network core image
-        set_config_bool(${image} ${normal_approtect} y)
-      elseif(normal_approtect)
+        if(normal_approtect)
+          set_config_bool(${image} ${normal_approtect} y)
+        endif()
+      else()
         # Application (or other) core image
-        set_config_bool(${image} ${normal_approtect} y)
-        set_config_bool(${image} ${secure_approtect} y)
+        if(normal_approtect)
+          set_config_bool(${image} ${normal_approtect} y)
+        endif()
+        if(secure_approtect)
+          set_config_bool(${image} ${secure_approtect} y)
+        endif()
       endif()
     endforeach()
 
@@ -618,6 +663,23 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
     set(network_images)
   endif()
 
+  if(SB_CONFIG_CRACEN_MICROCODE_LOAD_ONCE)
+    if(SB_CONFIG_CRACEN_MICROCODE_LOAD_B0)
+      set_config_bool(b0 CONFIG_CRACEN_LOAD_MICROCODE y)
+
+      if(SB_CONFIG_BOOTLOADER_MCUBOOT)
+        set_config_bool(mcuboot CONFIG_CRACEN_LOAD_MICROCODE n)
+      endif()
+    elseif(SB_CONFIG_CRACEN_MICROCODE_LOAD_MCUBOOT)
+      if(SB_CONFIG_SECURE_BOOT_APPCORE)
+        set_config_bool(b0 CONFIG_CRACEN_LOAD_MICROCODE n)
+      endif()
+
+      set_config_bool(mcuboot CONFIG_CRACEN_LOAD_MICROCODE y)
+    endif()
+
+    set_config_bool(${DEFAULT_IMAGE} CONFIG_CRACEN_LOAD_MICROCODE n)
+  endif()
 endfunction(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
 
 function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_image_cmake)
@@ -646,8 +708,9 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_post_cmake)
   set_property(GLOBAL PROPERTY DOMAIN_APP_APP ${DEFAULT_IMAGE})
 
   # Include any files that need to merge files with uicr_merged.hex before including suit
-  if(FP_DATA_PRESENT AND NOT SB_CONFIG_PARTITION_MANAGER)
-    include(${ZEPHYR_NRF_MODULE_DIR}/cmake/sysbuild/fast_pair_hex.cmake)
+  if(SB_CONFIG_BT_FAST_PAIR_PROV_DATA AND NOT SB_CONFIG_PARTITION_MANAGER)
+    # The DTS partition for the Fast Pair hex file is available in the post-CMake stage.
+    include(${ZEPHYR_NRF_MODULE_DIR}/cmake/sysbuild/fast_pair/hex.cmake)
   endif()
 
   if(SB_CONFIG_MATTER_FACTORY_DATA_GENERATE)
@@ -656,8 +719,10 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_post_cmake)
   endif()
 
   include_packaging()
-  include_suit_provisioning()
-  include_suit()
+  if(NOT SB_CONFIG_SOC_NRF54H20_IRON)
+    include_suit_provisioning()
+    include_suit()
+  endif()
 
   if(SB_CONFIG_SECURE_BOOT OR SB_CONFIG_MCUBOOT_HARDWARE_DOWNGRADE_PREVENTION)
     include_provision_hex()
@@ -675,6 +740,10 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_post_cmake)
 
   if(SB_CONFIG_WIFI_PATCHES_EXT_FLASH_STORE)
     include(${ZEPHYR_NRF_MODULE_DIR}/cmake/sysbuild/nrf700x.cmake)
+  endif()
+
+  if(SB_CONFIG_SECURE_BOOT_BOOTCONF_LOCK_WRITES)
+    include(${ZEPHYR_NRF_MODULE_DIR}/cmake/sysbuild/bootconf.cmake)
   endif()
 
   if(SB_CONFIG_DFU_ZIP)

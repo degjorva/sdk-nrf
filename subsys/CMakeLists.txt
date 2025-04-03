@@ -6,23 +6,14 @@
 
 add_subdirectory_ifdef(CONFIG_BT bluetooth)
 
-add_subdirectory_ifdef(CONFIG_BOOTLOADER_MCUBOOT bootloader/bl_override)
 add_subdirectory_ifdef(CONFIG_IS_SECURE_BOOTLOADER bootloader)
-if(NOT (SYSBUILD OR NCS_SYSBUILD_PARTITION_MANAGER))
-  add_subdirectory_ifdef(CONFIG_SECURE_BOOT bootloader/image)
-endif()
 add_subdirectory_ifdef(CONFIG_SECURE_BOOT_CRYPTO bootloader/bl_crypto)
 add_subdirectory_ifdef(CONFIG_SECURE_BOOT_VALIDATION bootloader/bl_validation)
 add_subdirectory_ifdef(CONFIG_SECURE_BOOT_STORAGE bootloader/bl_storage)
 
-if(NOT SYSBUILD)
-  if(CONFIG_BOOTLOADER_PROVISION_HEX)
-    include(bootloader/cmake/provision_hex.cmake)
-  endif()
-endif()
-
 add_subdirectory_ifdef(CONFIG_NRF_SECURITY nrf_security)
 add_subdirectory_ifdef(CONFIG_TRUSTED_STORAGE trusted_storage)
+add_subdirectory_ifdef(CONFIG_SECURE_STORAGE secure_storage)
 
 add_subdirectory(net)
 add_subdirectory_ifdef(CONFIG_ESB		esb)
@@ -38,7 +29,6 @@ endif()
 
 add_subdirectory(mpsl)
 
-add_subdirectory_ifdef(CONFIG_ZIGBEE zigbee)
 add_subdirectory_ifdef(CONFIG_MGMT_FMFU mgmt/fmfu)
 add_subdirectory_ifdef(CONFIG_GAZELL gazell)
 
@@ -77,3 +67,4 @@ add_subdirectory(suit)
 add_subdirectory_ifdef(CONFIG_MGMT_SUITFU mgmt/suitfu)
 add_subdirectory_ifdef(CONFIG_DULT dult)
 add_subdirectory_ifdef(CONFIG_NRF_COMPRESS nrf_compress)
+add_subdirectory(mgmt/mcumgr)

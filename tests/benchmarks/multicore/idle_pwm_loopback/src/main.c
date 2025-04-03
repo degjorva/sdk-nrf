@@ -8,6 +8,7 @@
 LOG_MODULE_REGISTER(idle_pwm_loop, LOG_LEVEL_INF);
 
 #include <zephyr/kernel.h>
+#include <zephyr/cache.h>
 #include <zephyr/drivers/pwm.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/pm/device_runtime.h>
@@ -20,6 +21,13 @@ LOG_MODULE_REGISTER(idle_pwm_loop, LOG_LEVEL_INF);
 #if !DT_NODE_EXISTS(DT_NODELABEL(pwm_to_gpio_loopback))
 #error "Unsupported board: pwm_to_gpio_loopback node is not defined"
 #endif
+
+#define SHM_START_ADDR		(DT_REG_ADDR(DT_NODELABEL(cpuapp_cpurad_ipc_shm)))
+volatile static uint32_t *shared_var = (volatile uint32_t *) SHM_START_ADDR;
+#define HOST_IS_READY	(1)
+#define REMOTE_IS_READY	(2)
+
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led), gpios);
 
 static const struct gpio_dt_spec pin_in = GPIO_DT_SPEC_GET_BY_IDX(
 	DT_NODELABEL(pwm_to_gpio_loopback),	gpios, 0);
@@ -36,38 +44,31 @@ static bool timer_expired;
 
 
 #if defined(CONFIG_CLOCK_CONTROL)
-const struct nrf_clock_spec clk_spec_global_hsfll = {
-	.frequency = MHZ(CONFIG_GLOBAL_DOMAIN_CLOCK_FREQUENCY_MHZ)
-};
+const uint32_t freq[] = {320, 256, 128, 64};
 
 /*
  * Set Global Domain frequency (HSFLL120)
- * based on: CONFIG_GLOBAL_DOMAIN_CLOCK_FREQUENCY_MHZ
  */
-void set_global_domain_frequency(void)
+void set_global_domain_frequency(uint32_t freq)
 {
 	int err;
 	int res;
 	struct onoff_client cli;
 	const struct device *hsfll_dev = DEVICE_DT_GET(DT_NODELABEL(hsfll120));
+	const struct nrf_clock_spec clk_spec_global_hsfll = {.frequency = MHZ(freq)};
 
 	printk("Requested frequency [Hz]: %d\n", clk_spec_global_hsfll.frequency);
 	sys_notify_init_spinwait(&cli.notify);
 	err = nrf_clock_control_request(hsfll_dev, &clk_spec_global_hsfll, &cli);
-	printk("Return code: %d\n", err);
-	__ASSERT_NO_MSG(err < 3);
-	__ASSERT_NO_MSG(err >= 0);
+	__ASSERT((err >= 0 && err < 3), "Wrong nrf_clock_control_request return code");
 	do {
 		err = sys_notify_fetch_result(&cli.notify, &res);
 		k_yield();
 	} while (err == -EAGAIN);
-	printk("Clock control request return value: %d\n", err);
-	printk("Clock control request response code: %d\n", res);
-	__ASSERT_NO_MSG(err == 0);
-	__ASSERT_NO_MSG(res == 0);
+	__ASSERT(err == 0, "Wrong clock control request return code");
+	__ASSERT(res == 0, "Wrong clock control request response");
 }
 #endif /* CONFIG_CLOCK_CONTROL */
-
 
 void my_timer_handler(struct k_timer *dummy)
 {
@@ -96,10 +97,19 @@ int main(void)
 	uint32_t edges;
 	uint32_t tolerance;
 	int ret;
+	int test_repetitions = 3;
+
+	ret = gpio_is_ready_dt(&led);
+	__ASSERT(ret, "Error: GPIO Device not ready");
+
+	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+	__ASSERT(ret == 0, "Could not configure led GPIO");
+
+	/* Wait a bit to solve NRFS request timeout issue. */
+	k_msleep(100);
 
 #if defined(CONFIG_CLOCK_CONTROL)
-	k_msleep(1000);
-	set_global_domain_frequency();
+	set_global_domain_frequency(CONFIG_GLOBAL_DOMAIN_CLOCK_FREQUENCY_MHZ);
 #endif
 
 	/* Set PWM fill ratio to 50% */
@@ -122,6 +132,7 @@ int main(void)
 	LOG_INF("GPIO loopback at %s, pin %d", pin_in.port->name, pin_in.pin);
 	LOG_INF("Pulse/period: %u/%u usec", pulse / 1000, pwm_out.period / 1000);
 	LOG_INF("Expected number of edges in 1 second: %u (+/- %u)", edges, tolerance);
+	LOG_INF("Shared memory at %p", (void *) shared_var);
 	LOG_INF("===================================================================");
 
 	ret = pwm_is_ready_dt(&pwm_out);
@@ -151,8 +162,40 @@ int main(void)
 
 	k_timer_init(&my_timer, my_timer_handler, NULL);
 
-	/* Run test forever */
-	while (1) {
+	/* Synchronize Remote core with Host core */
+#if !defined(CONFIG_TEST_ROLE_REMOTE)
+	LOG_DBG("HOST starts");
+	*shared_var = HOST_IS_READY;
+	sys_cache_data_flush_range((void *) shared_var, sizeof(*shared_var));
+	LOG_DBG("HOST wrote HOST_IS_READY: %u", *shared_var);
+	while (*shared_var != REMOTE_IS_READY) {
+		k_msleep(1);
+		sys_cache_data_invd_range((void *) shared_var, sizeof(*shared_var));
+		LOG_DBG("shared_var is: %u", *shared_var);
+	}
+	LOG_DBG("HOST continues");
+#else
+	LOG_DBG("REMOTE starts");
+	while (*shared_var != HOST_IS_READY) {
+		k_msleep(1);
+		sys_cache_data_invd_range((void *) shared_var, sizeof(*shared_var));
+		LOG_DBG("shared_var is: %u", *shared_var);
+	}
+	LOG_DBG("REMOTE found that HOST_IS_READY");
+	*shared_var = REMOTE_IS_READY;
+	sys_cache_data_flush_range((void *) shared_var, sizeof(*shared_var));
+	LOG_DBG("REMOTE wrote REMOTE_IS_READY: %u", *shared_var);
+	LOG_DBG("REMOTE continues");
+#endif
+
+#if defined(CONFIG_COVERAGE)
+	printk("Coverage analysis enabled\n");
+	while (test_repetitions--)
+#else
+	/* Run test forever. */
+	while (test_repetitions)
+#endif
+	{
 		timer_expired = false;
 
 		/* clear edge counters */
@@ -186,11 +229,14 @@ int main(void)
 		}
 		__ASSERT_NO_MSG(ret == 0);
 
+#if defined(CONFIG_GLOBAL_DOMAIN_CLOCK_FREQUENCY_SWITCHING)
+			k_busy_wait(100000);
+			set_global_domain_frequency(freq[counter % ARRAY_SIZE(freq)]);
+#endif
 		/* Keep PWM active for ~ 1 second */
 		while (!timer_expired) {
 			/* GPIOTE shall count edges here */
-			k_msleep(10);
-			k_yield();
+			k_busy_wait(10000);
 		}
 
 		/* Disable PWM */
@@ -219,15 +265,21 @@ int main(void)
 		__ASSERT_NO_MSG(ret == 0);
 
 		LOG_INF("Iteration %u: rising: %u, falling %u",
-			counter++, high, low);
+			counter, high, low);
 
 		/* Check if PWM is working */
 		__ASSERT_NO_MSG(high >= edges - tolerance);
 		__ASSERT_NO_MSG(low >= edges - tolerance);
 
 		/* Sleep / enter low power state */
+		gpio_pin_set_dt(&led, 0);
 		k_msleep(CONFIG_TEST_SLEEP_DURATION_MS);
+		gpio_pin_set_dt(&led, 1);
+		counter++;
 	}
 
+#if defined(CONFIG_COVERAGE)
+	printk("Coverage analysis start\n");
+#endif
 	return 0;
 }

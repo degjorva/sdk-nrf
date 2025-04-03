@@ -25,7 +25,7 @@
 #include <app-common/zap-generated/attributes/Accessors.h>
 #include <app-common/zap-generated/ids/Attributes.h>
 #include <app-common/zap-generated/ids/Clusters.h>
-#include <app/server/OnboardingCodesUtil.h>
+#include <setup_payload/OnboardingCodesUtil.h>
 
 #ifdef CONFIG_BRIDGED_DEVICE_BT
 #include <bluetooth/services/lbs.h>
@@ -87,6 +87,19 @@ void BLEStateChangeCallback(Nrf::BLEConnectivityManager::State state)
 #endif /* CONFIG_BRIDGE_SMART_PLUG_SUPPORT */
 
 #endif /* CONFIG_BRIDGED_DEVICE_BT */
+
+#ifndef CONFIG_CHIP_FACTORY_RESET_ERASE_SETTINGS
+void AppFactoryResetHandler(const ChipDeviceEvent *event, intptr_t /* unused */)
+{
+	switch (event->Type) {
+	case DeviceEventType::kFactoryReset:
+		Nrf::BridgeStorageManager::Instance().FactoryReset();
+		break;
+	default:
+		break;
+	}
+}
+#endif
 
 } /* namespace */
 
@@ -194,6 +207,14 @@ CHIP_ERROR AppTask::Init()
 	/* Register Matter event handler that controls the connectivity status LED based on the captured Matter
 	 * network state. */
 	ReturnErrorOnFailure(Nrf::Matter::RegisterEventHandler(Nrf::Board::DefaultMatterEventHandler, 0));
+
+#ifndef CONFIG_CHIP_FACTORY_RESET_ERASE_SETTINGS
+	/* Register factory reset event handler.
+	 * With this configuration we have to manually clean up the storage,
+	 * as whole settings partition won't be erased.
+	 * */
+	ReturnErrorOnFailure(Nrf::Matter::RegisterEventHandler(AppFactoryResetHandler, 0));
+#endif
 
 	return Nrf::Matter::StartServer();
 }

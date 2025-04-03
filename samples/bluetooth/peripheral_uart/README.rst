@@ -109,9 +109,6 @@ User interface
 
 The user interface of the sample depends on the hardware platform you are using.
 
-Development kits
-================
-
 .. tabs::
 
    .. group-tab:: nRF21, nRF52 and nRF53 DKs
@@ -176,6 +173,11 @@ Building and running
 
 .. include:: /includes/build_and_run_ns.txt
 
+.. |sample_or_app| replace:: sample
+.. |ipc_radio_dir| replace:: :file:`sysbuild/ipc_radio`
+
+.. include:: /includes/ipc_radio_conf.txt
+
 .. include:: /includes/nRF54H20_erase_UICR.txt
 
 .. note::
@@ -233,7 +235,7 @@ After programming the sample to your development kit, complete the following ste
       #. Reset the kit.
       #. Observe that **LED 1** is blinking and the device is advertising under the default name **Nordic_UART_Service**.
          You can configure this name using the :kconfig:option:`CONFIG_BT_DEVICE_NAME` Kconfig option.
-      #. Observe that the text "Starting Nordic UART service example" is printed on the COM listener running on the computer.
+      #. Observe that the text "Starting Nordic UART service sample" is printed on the COM listener running on the computer.
 
    .. group-tab:: nRF54 DKs
 
@@ -247,7 +249,7 @@ After programming the sample to your development kit, complete the following ste
       #. Reset the kit.
       #. Observe that **LED 0** is blinking and the device is advertising under the default name **Nordic_UART_Service**.
          You can configure this name using the :kconfig:option:`CONFIG_BT_DEVICE_NAME` Kconfig option.
-      #. Observe that the text "Starting Nordic UART service example" is printed on the COM listener running on the computer.
+      #. Observe that the text "Starting Nordic UART service sample" is printed on the COM listener running on the computer.
 
 .. _peripheral_uart_testing_mobile:
 

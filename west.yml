@@ -1,4 +1,4 @@
-# tHe west manifest file (west.yml) for the nRF Connect SDK (NCS).
+# The west manifest file (west.yml) for the nRF Connect SDK (NCS).
 #
 # The per-workspace west configuration file, ncs/.west/config,
 # specifies the location of this manifest file like this:
@@ -25,10 +25,6 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: throwtheswitch
       url-base: https://github.com/ThrowTheSwitch
-    - name: armmbed
-      url-base: https://github.com/ARMmbed
-    - name: nordicsemi
-      url-base: https://github.com/NordicSemiconductor
     - name: dragoon
       url-base: https://projecttools.nordicsemi.no/bitbucket/scm/drgn
     - name: memfault
@@ -50,7 +46,7 @@ manifest:
     - -dragoon
     - -find-my
     - -babblesim
-    - -sidewalk
+    - -libmodem
     - -bsec
     - -doc-internal
     - +optional
@@ -69,7 +65,7 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
       repo-path: sdk-zephyr
-      revision: 9761d261943a916443cf6c748ee3daa2915e3546
+      revision: f55a8067736a905992ef47d164c87443879b273c
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
@@ -83,7 +79,7 @@ manifest:
         #
         # Please keep this list sorted alphabetically.
         name-allowlist:
-          - TraceRecorderSource
+          - percepio
           - canopennode
           - chre
           - cmsis
@@ -93,6 +89,7 @@ manifest:
           - fatfs
           - hal_nordic
           - hal_st # required for ST sensors (unrelated to STM32 MCUs)
+          - hal_tdk # required for Invensense sensors such as ICM42670
           - hal_wurthelektronik
           - hostap
           - liblc3
@@ -130,7 +127,7 @@ manifest:
           compare-by-default: true
     - name: mcuboot
       repo-path: sdk-mcuboot
-      revision: b82206c15fff357c151c24bf97c99c4348d14a46
+      revision: 3bd17963688423aa7a1e139ce54572fa2c7c700f
       path: bootloader/mcuboot
     - name: qcbor
       url: https://github.com/laurencelundblade/QCBOR
@@ -139,19 +136,19 @@ manifest:
     - name: mbedtls
       path: modules/crypto/mbedtls
       repo-path: sdk-mbedtls
-      revision: v3.6.2-ncs2
+      revision: 44ce293d1d9bf4251e337160250d7dd477f52edd
     - name: oberon-psa-crypto
       path: modules/crypto/oberon-psa-crypto
       repo-path: sdk-oberon-psa-crypto
-      revision: 21728cf8402ac567326d0d69eec891a2bfdb8ea3
+      revision: a1c10c6d0723db46716162d4744a33ca6aac8596
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      revision: 37a87d3a0abebd0ce4a2c93be17ab3beb5d49b9b
+      revision: 4c6c4cee7c2fa71dcf32eba5390d0af916b962b4
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
-      revision: 3f08f2595d976624e42478bb377cb24798b00a5d
+      revision: 0002817d4e50c8832028c280996dfeac47938138
     - name: psa-arch-tests
       repo-path: sdk-psa-arch-tests
       path: modules/tee/tf-m/psa-arch-tests
@@ -159,7 +156,7 @@ manifest:
     - name: matter
       repo-path: sdk-connectedhomeip
       path: modules/lib/matter
-      revision: ad8ba68fd93b25f3fc0c0093bdaade96439b3987
+      revision: a13da8b19ea2f570293a418f689d15dbb5e007e8
       west-commands: scripts/west/west-commands.yml
       submodules:
         - name: nlio
@@ -178,21 +175,14 @@ manifest:
     - name: nrf-802154
       repo-path: sdk-nrf-802154
       path: nrf-802154
-      revision: 9bac646f39a03af50cf42a4c07d9348c448857f8
+      revision: 8058d3003bbcef71b1b3b052c6a11a7e9903c0ae
       groups:
         - nrf-802154
-    - name: soc-hwmv1
-      repo-path: sdk-soc-hwmv1
-      revision: be0500992bd8c222118b651b88d1f3714855a3aa
-      path: modules/soc-hwmv1
-      groups:
-        - soc-hwmv1
     - name: dragoon
       # Only for internal Nordic development
       repo-path: dragoon.git
       remote: dragoon
-      revision: 769666e2a185d5cbaf89bd9cbfe17911b4d9d447
-      submodules: true
+      revision: 68d854cc57bed6e15e185d2703d471f2aadff350
       groups:
         - dragoon
     - name: cjson
@@ -204,14 +194,9 @@ manifest:
           upstream-url: https://github.com/DaveGamble/cJSON
           upstream-sha: d2735278ed1c2e4556f53a7a782063b31331dbf7
           compare-by-default: false
-    - name: sidewalk
-      repo-path: sdk-sidewalk
-      revision: f274ce8ab97d1504de4c6b372bb98d4dc41bacc5
-      groups:
-        - sidewalk
     - name: find-my
       repo-path: sdk-find-my
-      revision: 4e3f051703d3cdeea3367ab56975eef978abbb0e
+      revision: 01af9578b7510f4f312c274465b92c27ef67c474
       groups:
         - find-my
     - name: azure-sdk-for-c
@@ -232,25 +217,29 @@ manifest:
           upstream-url: https://github.com/CirrusLogic/mcu-drivers
           upstream-sha: 1be6ca7253133a21a1e9fe0fbb4656e17d63a936
           compare-by-default: false
+    - name: libmodem
+      revision: 5dc5bc768dda0ddf9974920c618b70da5d67c6c3
+      groups:
+        - libmodem
     - name: openthread
       repo-path: sdk-openthread
       path: modules/lib/openthread
-      revision: ncs-thread-reference-20241002
+      revision: ncs-thread-reference-20250402
       userdata:
         ncs:
           upstream-url: https://github.com/openthread/openthread
           upstream-sha: c6eaeda5a1c1c5dbb24dce7e027340cb8893a77b
           compare-by-default: false
     - name: suit-generator
-      revision: f07d308f03e039bc73767c145f4cff4a70e74442
+      revision: 1817ea1aac7cd0cfae4d50b8aea897d9140833ef
       path: modules/lib/suit-generator
     - name: suit-processor
-      revision: a499bcadceff8877da63a0a140c6a91ff2f87b25
+      revision: 94effb7561b3a970195df76165e4b15e4ac0c34e
       path: modules/lib/suit-processor
     - name: doc-internal
       repo-path: doc-internal
       path: modules/doc-internal
-      revision: 6f4c21fe4276df610b3428f9dfd8f8fbebe477d2
+      revision: ae9f21960477636720a72ced869a6c342d502484
       groups:
         - doc-internal
 
@@ -262,12 +251,12 @@ manifest:
       remote: throwtheswitch
     - name: memfault-firmware-sdk
       path: modules/lib/memfault-firmware-sdk
-      revision: 1.12.0
+      revision: 1.18.0
       remote: memfault
     - name: bsim
       repo-path: bsim_west
       remote: babblesim
-      revision: 1f242f4ed7fc141fdfcfeca8d21c6d9e801179d7
+      revision: a88d3353451387ca490a6a7f7c478a90c4ee05b7
       import:
         path-prefix: tools
     - name: bme68x

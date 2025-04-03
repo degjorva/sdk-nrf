@@ -194,7 +194,7 @@ Working with nRF91 Series
 * Updated:
 
   * The :ref:`ug_nrf9160_gs` and :ref:`ug_thingy91_gsg` pages so that instructions in the :ref:`nrf9160_gs_connecting_dk_to_cloud` and :ref:`thingy91_connect_to_cloud` sections, respectively, match the updated nRF Cloud workflow.
-  * The :ref:`ug_nrf9160_gs` by replacing the Updating the DK firmware section with a new :ref:`nrf9160_gs_installing_software` section.
+  * The :ref:`ug_nrf9160_gs` by replacing the Updating the DK firmware section with a new Getting started using the Quick Start app section.
     This new section includes steps for using the `Quick Start app`_, a new application in `nRF Connect for Desktop`_ that streamlines the getting started process with the nRF91 Series DKs.
   * :ref:`ug_nrf9160` user guide by separating the information about snippets into its own page, :ref:`ug_nrf91_snippet`.
 
@@ -386,10 +386,10 @@ Zigbee
 
 * Updated:
 
-  * :ref:`nrfxlib:zboss` to v3.11.3.0 and platform v5.1.4 (``v3.11.3.0+5.1.4``).
+  * ZBOSS Zigbee stack to v3.11.3.0 and platform v5.1.4 (``v3.11.3.0+5.1.4``).
     They contain fixes for security vulnerabilities and other bugs.
-    For details, see :ref:`zboss_changelog`.
-  * :ref:`ZBOSS Network Co-processor Host <ug_zigbee_tools_ncp_host>` package to the new version v2.2.2.
+    For details, see the ZBOSS changelog.
+  * ZBOSS Network Co-processor Host package to the new version v2.2.2.
 
 * Removed the precompiled development variant of ZBOSS libraries.
 * Fixed a bus fault issue at reset when using :kconfig:option:`CONFIG_RAM_POWER_DOWN_LIBRARY` in some samples configuration (KRKNWK-18572).
@@ -442,7 +442,7 @@ Asset Tracker v2
 * Added:
 
   * Support for the nRF9151 development kit.
-  * The :ref:`CONFIG_DATA_SAMPLE_WIFI_DEFAULT <CONFIG_DATA_SAMPLE_WIFI_DEFAULT>` Kconfig option to configure whether Wi-Fi APs are included in sample requests by default.
+  * The ``CONFIG_DATA_SAMPLE_WIFI_DEFAULT`` Kconfig option to configure whether Wi-Fi APs are included in sample requests by default.
   * The :kconfig:option:`CONFIG_NRF_CLOUD_SEND_SERVICE_INFO_FOTA` and :kconfig:option:`CONFIG_NRF_CLOUD_SEND_SERVICE_INFO_UI` Kconfig options.
     The application no longer sends a device shadow update; this is now handled by the :ref:`lib_nrf_cloud` library.
   * Support for ADXL367 accelerometer.

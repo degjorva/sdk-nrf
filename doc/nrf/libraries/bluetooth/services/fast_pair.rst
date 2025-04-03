@@ -32,10 +32,6 @@ Configuration
 
 The Fast Pair Service is enabled with :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option set in the main application image.
 
-.. note::
-   When building with sysbuild, value of the :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option is overwritten by ``SB_CONFIG_BT_FAST_PAIR``.
-   For more details about enabling Fast Pair for your application, see the :ref:`ug_bt_fast_pair_prerequisite_ops_kconfig` section in the Fast Pair integration guide.
-
 With the :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option enabled, the following Kconfig options are available for this service:
 
 * :kconfig:option:`CONFIG_BT_FAST_PAIR_GATT_SERVICE_MODEL_ID` - The option adds the Model ID characteristic to the Fast Pair GATT service.
@@ -167,7 +163,6 @@ Partition Manager
 -----------------
 
 The Fast Pair provisioning data is preprogrammed to a dedicated flash memory partition.
-For targets that support the :ref:`partition_manager`, the GFPS selects the :kconfig:option:`CONFIG_PM_SINGLE_IMAGE` Kconfig option to enable it.
 The :ref:`zephyr:nrf54h20dk_nrf54h20` is the only device that does not support this feature.
 
 Settings

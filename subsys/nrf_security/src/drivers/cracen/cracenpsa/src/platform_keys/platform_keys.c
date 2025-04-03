@@ -37,6 +37,8 @@
 #define PLATFORM_KEY_GET_DOMAIN(x)     (((x) >> 16) & 0xff)
 #define PLATFORM_KEY_GET_ACCESS(x)     (((x) >> 24) & 0xf)
 
+#define PLATFORM_KEY_REVOKED_FLAG (0xFA50)
+
 #define MAX_KEY_SIZE 32
 
 static struct {
@@ -46,7 +48,7 @@ static struct {
 		      {DOMAIN_CELL, "CELL-"}, {DOMAIN_WIFI, "WIFI-"},
 		      {DOMAIN_RADIO, "RADIOCORE-"},	  {DOMAIN_APPLICATION, "APPLICATION-"}};
 
-struct {
+static struct {
 	uint8_t id;
 	const char *label;
 } key_type_to_label[] = {
@@ -144,6 +146,7 @@ typedef enum {
 	DERIVED,
 	SICR,
 	IKG,
+	REVOKED
 } key_type;
 
 #define APPEND_STR(str, end, part)                                                                 \
@@ -176,7 +179,7 @@ static key_type find_key(uint32_t id, platform_key *key)
 		key->sicr.key_buffer_max_length = sizeof((x)[gen].CIPHERTEXT);                     \
 		key->sicr.mac = (uint8_t *)(x)[gen].MAC;                                           \
 		key->sicr.mac_size = sizeof((x)[gen].MAC);                                         \
-		return SICR;                                                                       \
+		return (key->sicr.type == PLATFORM_KEY_REVOKED_FLAG) ? REVOKED : SICR;             \
 	}                                                                                          \
 	break;
 
@@ -194,7 +197,7 @@ static key_type find_key(uint32_t id, platform_key *key)
 		key->sicr.key_buffer_max_length = sizeof((x)[gen].PUBKEY);                         \
 		key->sicr.mac = (uint8_t *)(x)[gen].MAC;                                           \
 		key->sicr.mac_size = sizeof((x)[gen].MAC);                                         \
-		return SICR;                                                                       \
+		return (key->sicr.type == PLATFORM_KEY_REVOKED_FLAG) ? REVOKED : SICR;             \
 	}                                                                                          \
 	break;
 
@@ -211,6 +214,14 @@ static key_type find_key(uint32_t id, platform_key *key)
 		FILL_PUBKEY(NRF_SECURE_SICR_S->AROT.RADIO.SUITPUBKEY, generation);
 	case DOMAIN_USAGE(DOMAIN_NONE, USAGE_RMOEM):
 		FILL_PUBKEY(NRF_SECURE_SICR_S->AROT.SECURE.OEMPUBKEY, generation);
+	case DOMAIN_USAGE(DOMAIN_APPLICATION, USAGE_AUTHDEBUG):
+		FILL_PUBKEY(NRF_SECURE_SICR_S->AROT.APPLICATION.AUTHDEBUGKEY, generation);
+	case DOMAIN_USAGE(DOMAIN_RADIO, USAGE_AUTHDEBUG):
+		FILL_PUBKEY(NRF_SECURE_SICR_S->AROT.RADIO.AUTHDEBUGKEY, generation);
+	case DOMAIN_USAGE(DOMAIN_WIFI, USAGE_AUTHDEBUG):
+		FILL_PUBKEY(NRF_SECURE_SICR_S->AROT.WIFICORE.AUTHDEBUGKEY, generation);
+	case DOMAIN_USAGE(DOMAIN_CELL, USAGE_AUTHDEBUG):
+		FILL_PUBKEY(NRF_SECURE_SICR_S->AROT.CELLULARCORE.AUTHDEBUGKEY, generation);
 	case DOMAIN_USAGE(DOMAIN_APPLICATION, USAGE_FWENC):
 		FILL_AESKEY(NRF_SECURE_SICR_S->AROT.APPLICATION.FWENC, generation);
 	case DOMAIN_USAGE(DOMAIN_RADIO, USAGE_FWENC):
@@ -278,6 +289,39 @@ static key_type find_key(uint32_t id, platform_key *key)
 	return INVALID;
 }
 
+static void write_sicr_key_to_mram(platform_key *key, uint32_t sicr_attr, const uint8_t *key_buffer,
+				   size_t key_buffer_size)
+{
+	NRF_MRAMC_Type *mramc = (NRF_MRAMC_Type *)DT_REG_ADDR(DT_NODELABEL(mramc));
+	nrf_mramc_config_t mramc_config, mramc_config_write_enabled;
+	nrf_mramc_readynext_timeout_t readynext_timeout, short_readynext_timeout;
+
+	nrf_mramc_config_get(mramc, &mramc_config);
+	mramc_config_write_enabled = mramc_config;
+
+	/* Ensure MRAMC is configured for SICR writing */
+	mramc_config_write_enabled.mode_write = NRF_MRAMC_MODE_WRITE_DIRECT;
+
+	nrf_mramc_config_set(mramc, &mramc_config_write_enabled);
+
+	memcpy(key->sicr.attr_addr, &sicr_attr, sizeof(sicr_attr));
+	memcpy(key->sicr.key_buffer, key_buffer, key_buffer_size);
+
+	nrf_mramc_readynext_timeout_get(mramc, &readynext_timeout);
+
+	/* Ensure that nonce is committed to MRAM by setting MRAMC READYNEXT timeout to 0 */
+	short_readynext_timeout.value = 0;
+	short_readynext_timeout.direct_write = true;
+	nrf_mramc_readynext_timeout_set(mramc, &short_readynext_timeout);
+
+	/* Only store the 4 first bytes of the nonce, the rest are padded with zeros */
+	memcpy(key->sicr.nonce_addr, &key->sicr.nonce, sizeof(key->sicr.nonce[0]));
+
+	/* Restore MRAMC config */
+	nrf_mramc_config_set(mramc, &mramc_config);
+	nrf_mramc_readynext_timeout_set(mramc, &readynext_timeout);
+}
+
 /**
  * @brief Checks whether key usage from a certain domain can access key.
  *
@@ -336,6 +380,10 @@ psa_status_t cracen_platform_get_builtin_key(psa_drv_slot_number_t slot_number,
 {
 	platform_key key;
 	key_type type = find_key((uint32_t)slot_number, &key);
+
+	if (type == REVOKED) {
+		return PSA_ERROR_NOT_PERMITTED;
+	}
 
 	if (type == SICR) {
 		uint32_t key_id = (uint32_t)slot_number;
@@ -520,26 +568,24 @@ cleanup:
 	return PSA_ERROR_CORRUPTION_DETECTED;
 }
 
-size_t cracen_platform_keys_get_size(psa_key_attributes_t const *attributes)
+psa_status_t cracen_platform_keys_get_size(psa_key_attributes_t const *attributes, size_t *key_size)
 {
 	platform_key key;
 	key_type type = find_key(MBEDTLS_SVC_KEY_ID_GET_KEY_ID(psa_get_key_id(attributes)), &key);
 	psa_key_type_t key_type = psa_get_key_type(attributes);
 
-	if (type == INVALID) {
-		return 0;
+	if (type == REVOKED) {
+		return PSA_ERROR_NOT_PERMITTED;
+	} else if (type == IKG) {
+		*key_size = sizeof(ikg_opaque_key);
+		return PSA_SUCCESS;
+	} else if (key_type == PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_FAMILY_TWISTED_EDWARDS) ||
+		   key_type == PSA_KEY_TYPE_AES) {
+		*key_size = PSA_BITS_TO_BYTES(psa_get_key_bits(attributes));
+		return PSA_SUCCESS;
 	}
 
-	if (type == IKG) {
-		return sizeof(ikg_opaque_key);
-	}
-
-	if (key_type == PSA_KEY_TYPE_ECC_PUBLIC_KEY(PSA_ECC_FAMILY_TWISTED_EDWARDS) ||
-	    key_type == PSA_KEY_TYPE_AES) {
-		return PSA_BITS_TO_BYTES(psa_get_key_bits(attributes));
-	}
-
-	return 0;
+	return PSA_ERROR_INVALID_ARGUMENT;
 }
 
 psa_status_t cracen_platform_get_key_slot(mbedtls_svc_key_id_t key_id, psa_key_lifetime_t *lifetime,
@@ -547,6 +593,10 @@ psa_status_t cracen_platform_get_key_slot(mbedtls_svc_key_id_t key_id, psa_key_l
 {
 	platform_key key;
 	key_type type = find_key(MBEDTLS_SVC_KEY_ID_GET_KEY_ID(key_id), &key);
+
+	if (type == REVOKED) {
+		return PSA_ERROR_NOT_PERMITTED;
+	}
 
 	psa_status_t status = verify_access(MBEDTLS_SVC_KEY_ID_GET_OWNER_ID(key_id),
 					    MBEDTLS_SVC_KEY_ID_GET_KEY_ID(key_id));
@@ -586,7 +636,9 @@ psa_status_t cracen_platform_keys_provision(const psa_key_attributes_t *attribut
 	uint8_t encrypted_key[MAX_KEY_SIZE];
 	size_t outlen;
 
-	if (type != SICR) {
+	if (type == REVOKED) {
+		return PSA_ERROR_NOT_PERMITTED;
+	} else if (type != SICR) {
 		return PSA_ERROR_INVALID_ARGUMENT;
 	}
 
@@ -663,40 +715,47 @@ psa_status_t cracen_platform_keys_provision(const psa_key_attributes_t *attribut
 		return status;
 	}
 
-	uint32_t attr = (key.sicr.bits << 16) | key.sicr.type;
+	uint32_t sicr_attr = (key.sicr.bits << 16) | key.sicr.type;
 
-	NRF_MRAMC_Type *mramc = (NRF_MRAMC_Type *)DT_REG_ADDR(DT_NODELABEL(mramc));
-	nrf_mramc_config_t mramc_config, mramc_config_write_enabled;
-	nrf_mramc_readynext_timeout_t readynext_timeout, short_readynext_timeout;
-
-	nrf_mramc_config_get(mramc, &mramc_config);
-	mramc_config_write_enabled = mramc_config;
-
-	/* Ensure MRAMC is configured for SICR writing */
-	mramc_config_write_enabled.mode_write = NRF_MRAMC_MODE_WRITE_DIRECT;
-
-	nrf_mramc_config_set(mramc, &mramc_config_write_enabled);
-
-	memcpy(key.sicr.attr_addr, &attr, sizeof(attr));
 	if (key.sicr.type == PSA_KEY_TYPE_AES) {
-		memcpy(key.sicr.key_buffer, encrypted_key, key_buffer_size);
+		write_sicr_key_to_mram(&key, sicr_attr, encrypted_key, key_buffer_size);
 	} else {
-		memcpy(key.sicr.key_buffer, key_buffer, key_buffer_size);
+		write_sicr_key_to_mram(&key, sicr_attr, key_buffer, key_buffer_size);
 	}
 
-	nrf_mramc_readynext_timeout_get(mramc, &readynext_timeout);
-
-	/* Ensure that nonce is committed to MRAM by setting MRAMC READYNEXT timeout to 0 */
-	short_readynext_timeout.value = 0;
-	short_readynext_timeout.direct_write = true;
-	nrf_mramc_readynext_timeout_set(mramc, &short_readynext_timeout);
-
-	/* Only store the 4 first bytes of the nonce, the rest are padded with zeros */
-	memcpy(key.sicr.nonce_addr, &key.sicr.nonce, sizeof(key.sicr.nonce[0]));
-
-	/* Restore MRAMC config */
-	nrf_mramc_config_set(mramc, &mramc_config);
-	nrf_mramc_readynext_timeout_set(mramc, &readynext_timeout);
-
 	return status;
+}
+
+psa_status_t cracen_platform_destroy_key(const psa_key_attributes_t *attributes)
+{
+	platform_key key;
+	key_type type = find_key(MBEDTLS_SVC_KEY_ID_GET_KEY_ID(psa_get_key_id(attributes)), &key);
+	/* The value 0x00 was chosen arbitrarily here, 0xFF was not used to distinguish revoked keys
+	 * from keys not yet written.
+	 */
+	static const uint8_t revoked_key_val[MAX_KEY_SIZE] = {0x0};
+
+	if (type == REVOKED) {
+		return PSA_ERROR_NOT_PERMITTED;
+	} else if (type != SICR) {
+		return PSA_ERROR_INVALID_ARGUMENT;
+	}
+
+	psa_status_t status =
+		verify_access(MBEDTLS_SVC_KEY_ID_GET_OWNER_ID(psa_get_key_id(attributes)),
+			      MBEDTLS_SVC_KEY_ID_GET_KEY_ID(psa_get_key_id(attributes)));
+
+	if (status != PSA_SUCCESS) {
+		return status;
+	}
+
+	uint32_t revoked_key_attr = (key.sicr.bits << 16) | PLATFORM_KEY_REVOKED_FLAG;
+
+	/* The nonce will be written to MRAM based on the buffer in the platform_key, so we
+	 * set it here before the call to write function.
+	 */
+	key.sicr.nonce[0] = 0x0;
+	write_sicr_key_to_mram(&key, revoked_key_attr, revoked_key_val, sizeof(revoked_key_val));
+
+	return PSA_SUCCESS;
 }

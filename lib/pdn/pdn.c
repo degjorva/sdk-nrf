@@ -15,9 +15,11 @@
 #include <zephyr/net/socket.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/logging/log.h>
+#include <nrf_errno.h>
 #include <nrf_modem_at.h>
 #include <modem/pdn.h>
 #include <modem/at_monitor.h>
+#include <modem/at_parser.h>
 #include <modem/nrf_modem_lib.h>
 
 LOG_MODULE_REGISTER(pdn, CONFIG_PDN_LOG_LEVEL);
@@ -33,6 +35,22 @@ LOG_MODULE_REGISTER(pdn, CONFIG_PDN_LOG_LEVEL);
 #define MODEM_CFUN_POWER_OFF 0
 #define MODEM_CFUN_NORMAL 1
 #define MODEM_CFUN_ACTIVATE_LTE 21
+
+#define AT_CMD_PDN_CONTEXT_READ_INFO  "AT+CGCONTRDP=%u"
+#define AT_CMD_PDN_CONTEXT_READ_INFO_DNS_ADDR_PRIMARY_INDEX 6
+#define AT_CMD_PDN_CONTEXT_READ_INFO_DNS_ADDR_SECONDARY_INDEX 7
+#define AT_CMD_PDN_CONTEXT_READ_INFO_MTU_INDEX 12
+
+#define AT_CMD_PDN_CONTEXT_READ_RSP_DELIM "\r\n"
+
+     /* "+CGCONTRDP: 0,,"example.com","","","198.276.154.230","12.34.56.78",,,,,1464\r\n
+      *  +CGCONTRDP: 0,,"example.com","","","1111:2222:3:FFF::55","1111:2222:3:FFF::55",,,,,1464"
+      */
+#define AT_CMD_PDN_CONTEXT_READ_INFO_PARSE_LINE1 \
+	"+CGCONTRDP: %*u,,\"%*[^\"]\",\"\",\"\",\"%15[0-9.]\",\"%15[0-9.]\",,,,,%u"
+#define AT_CMD_PDN_CONTEXT_READ_INFO_PARSE_LINE2 \
+	"+%*[^+]"\
+	"+CGCONTRDP: %*u,,\"%*[^\"]\",\"\",\"\",\"%39[0-9A-Fa-f:]\",\"%39[0-9A-Fa-f:]\",,,,,%u"
 
 static K_MUTEX_DEFINE(list_mutex);
 
@@ -271,10 +289,9 @@ static void on_modem_init(int ret, void *ctx)
 #endif
 {
 	int err;
-	(void) err;
 
 	if (ret != 0) {
-		/* Return if modem initialization failed */
+		LOG_ERR("Modem library did not initialize: %d", ret);
 		return;
 	}
 
@@ -622,13 +639,13 @@ int pdn_dynamic_params_get(uint8_t cid, struct in_addr *dns4_pri,
 	unsigned int mtu;
 	char dns4_pri_str[INET_ADDRSTRLEN];
 	char dns4_sec_str[INET_ADDRSTRLEN];
-	char at_cmd[sizeof("AT+CGCONTRDP=10")];
+	char at_cmd[sizeof("AT+CGCONTRDP=###")];
 
-	if (snprintf(at_cmd, sizeof(at_cmd), "AT+CGCONTRDP=%u", cid) >= sizeof(at_cmd)) {
+	if (snprintf(at_cmd, sizeof(at_cmd), AT_CMD_PDN_CONTEXT_READ_INFO, cid) >= sizeof(at_cmd)) {
 		return -E2BIG;
 	}
-	   /* "+CGCONTRDP: 0,,"example.com","","","198.276.154.230","12.34.56.78",,,,,1464" */
-	fmt = "+CGCONTRDP: %*u,,\"%*[^\"]\",\"\",\"\",\"%15[0-9.]\",\"%15[0-9.]\",,,,,%u";
+
+	fmt = AT_CMD_PDN_CONTEXT_READ_INFO_PARSE_LINE1;
 
 	/* If IPv4 is enabled, it will be the first response line. */
 	matched = nrf_modem_at_scanf(at_cmd, fmt, &dns4_pri_str, &dns4_sec_str, &mtu);
@@ -659,51 +676,87 @@ int pdn_dynamic_params_get(uint8_t cid, struct in_addr *dns4_pri,
 	return 0;
 }
 
-int pdn_dynamic_params_get_v6(uint8_t cid, struct in6_addr *dns6_pri,
-			   struct in6_addr *dns6_sec, unsigned int *ipv6_mtu)
+static int pdn_sa_family_from_ip_string(const char *src)
 {
-	int matched;
-	const char *fmt;
-	unsigned int mtu;
-	char dns6_pri_str[INET6_ADDRSTRLEN];
-	char dns6_sec_str[INET6_ADDRSTRLEN];
-	char at_cmd[sizeof("AT+CGCONTRDP=10")];
+	char buf[INET6_ADDRSTRLEN];
 
-	if (snprintf(at_cmd, sizeof(at_cmd), "AT+CGCONTRDP=%u", cid) >= sizeof(at_cmd)) {
-		return -E2BIG;
+	if (zsock_inet_pton(AF_INET, src, buf)) {
+		return AF_INET;
+	} else if (zsock_inet_pton(AF_INET6, src, buf)) {
+		return AF_INET6;
 	}
-	/* "+CGCONTRDP: 0,,"ims","","",
-	 *	"0000:0000:0000:0000:0000:0000:0000:0000",
-	 *	"0000:0000:0000:0000:0000:0000:0000:0000",,,,,1500"
-	 */
-	fmt = "+CGCONTRDP: %*u,,\"%*[^\"]\",\"\",\"\","
-		"\"%45[0-9A-Fa-f:]\",\"%45[0-9A-Fa-f:]\",,,,,%u";
+	return -1;
+}
 
-	/* If IPv6 is enabled, it will be the first response line. */
-	matched = nrf_modem_at_scanf(at_cmd, fmt, &dns6_pri_str, &dns6_sec_str, &mtu);
-	/* Need to match at least the two IP addresses, or there is an error */
-	if (matched < 2) {
-		return -EBADMSG;
+/** @brief Fill PDN dynamic info with DNS addresses adnd mtu. */
+static void pdn_dynamic_info_dns_addr_fill(struct pdn_dynamic_info *pdn_info, uint32_t mtu,
+					   const char *dns_addr_str_primary,
+					   const char *dns_addr_str_secondary)
+{
+	const int family = pdn_sa_family_from_ip_string(dns_addr_str_primary);
+
+	if (family == AF_INET) {
+		(void)zsock_inet_pton(AF_INET, dns_addr_str_primary,
+				      &(pdn_info->dns_addr4_primary));
+		(void)zsock_inet_pton(AF_INET, dns_addr_str_secondary,
+				      &(pdn_info->dns_addr4_secondary));
+		pdn_info->ipv4_mtu = mtu;
+	} else if (family == AF_INET6) {
+		(void)zsock_inet_pton(AF_INET6, dns_addr_str_primary,
+				      &(pdn_info->dns_addr6_primary));
+		(void)zsock_inet_pton(AF_INET6, dns_addr_str_secondary,
+				      &(pdn_info->dns_addr6_secondary));
+		pdn_info->ipv6_mtu = mtu;
+	}
+}
+
+int pdn_dynamic_info_get(uint8_t cid, struct pdn_dynamic_info *pdn_info)
+{
+	int ret;
+	char at_cmd_buf[sizeof("AT+CGCONTRDP=###")];
+	char dns_addr_str_primary[INET6_ADDRSTRLEN];
+	char dns_addr_str_secondary[INET6_ADDRSTRLEN];
+	uint32_t mtu = 0;
+
+	if (!pdn_info) {
+		return -EINVAL;
 	}
 
-	if (dns6_pri) {
-		if (zsock_inet_pton(AF_INET6, dns6_pri_str, dns6_pri) != 1) {
-			return -EADDRNOTAVAIL;
+	/* Reset PDN dynamic info. */
+	memset(pdn_info, 0, sizeof(struct pdn_dynamic_info));
+
+	/* Clear secondary DNS address buffer. */
+	memset(dns_addr_str_secondary, 0, sizeof(dns_addr_str_secondary));
+
+	(void)snprintf(at_cmd_buf, sizeof(at_cmd_buf), AT_CMD_PDN_CONTEXT_READ_INFO, cid);
+	ret = nrf_modem_at_scanf(at_cmd_buf, AT_CMD_PDN_CONTEXT_READ_INFO_PARSE_LINE1,
+				 dns_addr_str_primary, dns_addr_str_secondary, &mtu);
+	if (ret < 1) {
+		/* Don't log an error if no PDN connections are active, this may not be considered
+		 * an error by the caller.
+		 */
+		if (ret != -NRF_EBADMSG) {
+			LOG_ERR("nrf_modem_at_scanf failed, ret: %d", ret);
 		}
+
+		return ret;
 	}
-	if (dns6_sec) {
-		if (zsock_inet_pton(AF_INET6, dns6_sec_str, dns6_sec) != 1) {
-			return -EADDRNOTAVAIL;
-		}
+
+	pdn_dynamic_info_dns_addr_fill(pdn_info, mtu, dns_addr_str_primary, dns_addr_str_secondary);
+
+	/* Reset secondary DNS address buffer and mtu. */
+	memset(dns_addr_str_secondary, 0, sizeof(dns_addr_str_secondary));
+	mtu = 0;
+
+	/* Scan second line if PDN has dual stack capabilities. */
+	ret = nrf_modem_at_scanf(at_cmd_buf, AT_CMD_PDN_CONTEXT_READ_INFO_PARSE_LINE2,
+				 dns_addr_str_primary, dns_addr_str_secondary, &mtu);
+	if (ret < 1) {
+		/* We only got one entry, but that is ok. */
+		return 0;
 	}
-	if (ipv6_mtu) {
-		/* If we matched the MTU, copy it here, otherwise report zero */
-		if (matched == 3) {
-			*ipv6_mtu = mtu;
-		} else {
-			*ipv6_mtu = 0;
-		}
-	}
+
+	pdn_dynamic_info_dns_addr_fill(pdn_info, mtu, dns_addr_str_primary, dns_addr_str_secondary);
 
 	return 0;
 }

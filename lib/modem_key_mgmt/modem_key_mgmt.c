@@ -4,6 +4,13 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+
+#ifdef _POSIX_C_SOURCE
+#undef _POSIX_C_SOURCE
+#endif
+/* Define _POSIX_C_SOURCE before including <string.h> in order to use `strtok_r`. */
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -17,7 +24,11 @@
 
 LOG_MODULE_REGISTER(modem_key_mgmt, CONFIG_MODEM_KEY_MGMT_LOG_LEVEL);
 
-/* Protect the shared scratch_buf with a mutex. */
+/*
+ * Protect the shared scratch_buf with a mutex.
+ * Also used for making sure we `cmee_enable` and `cmee_disable`
+ * in the correct order.
+ */
 static K_MUTEX_DEFINE(key_mgmt_mutex);
 static char scratch_buf[4096];
 
@@ -117,6 +128,11 @@ static int key_fetch(nrf_sec_tag_t tag,
 	int err;
 	bool cmee_was_active;
 
+	/*
+	 * This function is expected to be called with the mutex locked.
+	 * Therefore no need to lock/unlock it here.
+	 */
+
 	cmee_enable(&cmee_was_active);
 
 	err = nrf_modem_at_cmd(scratch_buf, sizeof(scratch_buf),
@@ -144,6 +160,8 @@ int modem_key_mgmt_write(nrf_sec_tag_t sec_tag,
 		return -EINVAL;
 	}
 
+	k_mutex_lock(&key_mgmt_mutex, K_FOREVER);
+
 	cmee_enable(&cmee_was_enabled);
 
 	err = nrf_modem_at_printf("AT%%CMNG=0,%u,%d,\"%.*s\"",
@@ -152,6 +170,8 @@ int modem_key_mgmt_write(nrf_sec_tag_t sec_tag,
 	if (!cmee_was_enabled) {
 		cmee_disable();
 	}
+
+	k_mutex_unlock(&key_mgmt_mutex);
 
 	if (err) {
 		return translate_error(err);
@@ -204,6 +224,7 @@ int modem_key_mgmt_read(nrf_sec_tag_t sec_tag,
 
 end:
 	k_mutex_unlock(&key_mgmt_mutex);
+
 	return err;
 }
 
@@ -263,8 +284,70 @@ int modem_key_mgmt_cmp(nrf_sec_tag_t sec_tag,
 
 out:
 	k_mutex_unlock(&key_mgmt_mutex);
-
 	return err;
+}
+
+#define MODEM_KEY_MGMT_DIGEST_STR_SIZE_WITHOUT_NULL_TERM 64
+
+int modem_key_mgmt_digest(nrf_sec_tag_t sec_tag,
+			  enum modem_key_mgmt_cred_type cred_type,
+			  void *buf, size_t len)
+{
+	char cmd[sizeof("AT%CMNG=1,##########,##")];
+	bool cmee_was_enabled;
+	int ret;
+
+	if (buf == NULL) {
+		return -EINVAL;
+	}
+
+	if (len < MODEM_KEY_MGMT_DIGEST_SIZE) {
+		return -ENOMEM;
+	}
+
+	snprintk(cmd, sizeof(cmd), "AT%%CMNG=1,%u,%u", sec_tag, cred_type);
+
+	k_mutex_lock(&key_mgmt_mutex, K_FOREVER);
+
+	cmee_enable(&cmee_was_enabled);
+
+	ret = nrf_modem_at_scanf(
+		cmd,
+		"%%CMNG: "
+		"%*u," /* Ignore tag. */
+		"%*u," /* Ignore type. */
+		"\"%" STRINGIFY(MODEM_KEY_MGMT_DIGEST_STR_SIZE_WITHOUT_NULL_TERM) "s\"",
+		scratch_buf);
+
+	if (!cmee_was_enabled) {
+		cmee_disable();
+	}
+
+	switch (ret) {
+	case 1:
+		len = hex2bin(scratch_buf, strlen(scratch_buf), buf, len);
+
+		if (len != MODEM_KEY_MGMT_DIGEST_SIZE) {
+			ret = -EINVAL;
+			break;
+		}
+
+		ret = 0;
+		break;
+	case 0:
+		ret = -ENOENT;
+	default:
+		break;
+	}
+
+	k_mutex_unlock(&key_mgmt_mutex);
+
+	if (ret) {
+		return translate_error(ret);
+	}
+
+	return 0;
+
 }
 
 int modem_key_mgmt_delete(nrf_sec_tag_t sec_tag,
@@ -273,6 +356,8 @@ int modem_key_mgmt_delete(nrf_sec_tag_t sec_tag,
 	int err;
 	bool cmee_was_enabled;
 
+	k_mutex_lock(&key_mgmt_mutex, K_FOREVER);
+
 	cmee_enable(&cmee_was_enabled);
 
 	err = nrf_modem_at_printf("AT%%CMNG=3,%u,%d", sec_tag, cred_type);
@@ -280,6 +365,8 @@ int modem_key_mgmt_delete(nrf_sec_tag_t sec_tag,
 	if (!cmee_was_enabled) {
 		cmee_disable();
 	}
+
+	k_mutex_unlock(&key_mgmt_mutex);
 
 	if (err) {
 		return translate_error(err);
@@ -292,29 +379,35 @@ int modem_key_mgmt_clear(nrf_sec_tag_t sec_tag)
 {
 	int err;
 	bool cmee_was_enabled;
-	char *token;
+	char *token, *save_token;
 	uint32_t tag, type;
+
+	k_mutex_lock(&key_mgmt_mutex, K_FOREVER);
 
 	cmee_enable(&cmee_was_enabled);
 
 	err = nrf_modem_at_cmd(scratch_buf, sizeof(scratch_buf), "AT%%CMNG=1, %d", sec_tag);
-	if (err) {
-		return translate_error(err);
-	}
-
-	token = strtok(scratch_buf, "\n");
-
-	while (token != NULL) {
-		err = sscanf(token, "%%CMNG: %u,%u,\"", &tag, &type);
-		if (tag == sec_tag) {
-			err = nrf_modem_at_printf("AT%%CMNG=3,%u,%u", sec_tag, type);
-		}
-		token = strtok(NULL, "\n");
-	}
 
 	if (!cmee_was_enabled) {
 		cmee_disable();
 	}
+
+	if (err) {
+		goto out;
+	}
+
+	token = strtok_r(scratch_buf, "\n", &save_token);
+
+	while (token != NULL) {
+		err = sscanf(token, "%%CMNG: %u,%u,\"", &tag, &type);
+		if (tag == sec_tag && err == 2) {
+			err = nrf_modem_at_printf("AT%%CMNG=3,%u,%u", sec_tag, type);
+		}
+		token = strtok_r(NULL, "\n", &save_token);
+	}
+
+out:
+	k_mutex_unlock(&key_mgmt_mutex);
 
 	if (err) {
 		return translate_error(err);
@@ -359,5 +452,47 @@ int modem_key_mgmt_exists(nrf_sec_tag_t sec_tag,
 
 out:
 	k_mutex_unlock(&key_mgmt_mutex);
+
+	return err;
+}
+
+int modem_key_mgmt_list(modem_key_mgmt_list_cb_t list_cb)
+{
+	int err;
+	char *token, *save_token;
+	uint32_t tag, type;
+	bool cmee_was_enabled;
+
+	k_mutex_lock(&key_mgmt_mutex, K_FOREVER);
+
+	cmee_enable(&cmee_was_enabled);
+
+	scratch_buf[0] = '\0';
+	err = nrf_modem_at_cmd(scratch_buf, sizeof(scratch_buf),
+			       "AT%%CMNG=1");
+
+	if (!cmee_was_enabled) {
+		cmee_disable();
+	}
+
+	if (err) {
+		err = translate_error(err);
+		goto out;
+	}
+
+	token = strtok_r(scratch_buf, "\n", &save_token);
+	while (token != NULL) {
+		int match = sscanf(token, "%%CMNG: %u,%u,\"", &tag, &type);
+
+		if (match == 2 && tag < NRF_SEC_TAG_TLS_DECRYPT_BASE) {
+			list_cb(tag, type);
+		}
+
+		token = strtok_r(NULL, "\n", &save_token);
+	}
+
+out:
+	k_mutex_unlock(&key_mgmt_mutex);
+
 	return err;
 }

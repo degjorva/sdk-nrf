@@ -19,7 +19,7 @@ Zephyr and the |NCS| provide support and contain board definitions for developin
    * - :ref:`zephyr:thingy53_nrf5340`
      - PCA20053
      - ``thingy53/nrf5340/cpuapp``, ``thingy53/nrf5340/cpuapp/ns``, ``thingy53/nrf5340/cpunet``
-     - | :ref:`ug_thingy53_gs`
+     - | `Get started <Nordic Thingy:53 get started_>`_ on the product page
        | `Hardware Specification <Nordic Thingy:53 Hardware_>`_
 
 The Nordic Thingy:53 is a battery-operated prototyping platform for IoT Systems.
@@ -30,5 +30,6 @@ The nRF5340 is augmented with the nRF21540 RF FEM (Front-end Module) Range exten
    :maxdepth: 2
    :caption: Subpages:
 
+   thingy53_precompiled
    building_thingy53
    thingy53_application_guide

@@ -24,6 +24,10 @@ The sample supports the following development kits:
 
 .. table-from-sample-yaml::
 
+.. note::
+   In case of the :ref:`zephyr:nrf54h20dk_nrf54h20` board target, the application still has high power consumption as the Bluetooth LE controller running on the radio core requires disabling MRAM latency (:kconfig:option:`CONFIG_MRAM_LATENCY_AUTO_REQ`).
+   Enabling MRAM latency makes the Bluetooth LE controller unstable.
+
 Overview
 ********
 
@@ -132,6 +136,8 @@ To start Fast Pair discoverable advertising after the FMDN unprovisioning and fa
    The Bluetooth advertising is active only until the Fast Pair Provider connects to a Bluetooth Central.
    Once connected, you can still request to turn on the advertising, but it will only activate after you disconnect.
 
+.. _fast_pair_locator_tag_dfu:
+
 Device Firmware Update (DFU)
 ============================
 
@@ -159,21 +165,61 @@ See the :ref:`zephyr:app-version-details` for details.
 
 The configuration of the DFU solution varies depending on the board target:
 
-+--------------+--------------------------------+------------------------------------------------------------+
-| DFU solution | Mode of operation              | Board targets                                              |
-+==============+================================+============================================================+
-| MCUboot      | direct-xip mode without revert | * ``nrf52dk/nrf52832`` (only ``release`` configuration)    |
-|              |                                | * ``nrf52833dk/nrf52833`` (only ``release`` configuration) |
-|              |                                | * ``nrf52840dk/nrf52840``                                  |
-|              |                                | * ``nrf54l15dk/nrf54l15/cpuapp``                           |
-+--------------+--------------------------------+------------------------------------------------------------+
-| MCUboot      | overwrite only mode            | * ``nrf5340dk/nrf5340/cpuapp``                             |
-|              |                                | * ``nrf5340dk/nrf5340/cpuapp/ns``                          |
-|              |                                | * ``thingy53/nrf5340/cpuapp``                              |
-|              |                                | * ``thingy53/nrf5340/cpuapp/ns``                           |
-+--------------+--------------------------------+------------------------------------------------------------+
-| SUIT         | overwrite only mode            | * ``nrf54h20dk/nrf54h20/cpuapp``                           |
-+--------------+--------------------------------+------------------------------------------------------------+
++--------------+--------------------------------+-------------------------------------------------------------------+
+| DFU solution | Mode of operation              | Board targets                                                     |
++==============+================================+===================================================================+
+| MCUboot      | direct-xip mode without revert | * ``nrf52dk/nrf52832`` (only ``release`` configuration)           |
+|              |                                | * ``nrf52833dk/nrf52833`` (only ``release`` configuration)        |
+|              |                                | * ``nrf52840dk/nrf52840``                                         |
+|              |                                | * ``nrf54l15dk/nrf54l05/cpuapp`` (only ``release`` configuration) |
+|              |                                | * ``nrf54l15dk/nrf54l10/cpuapp``                                  |
+|              |                                | * ``nrf54l15dk/nrf54l15/cpuapp``                                  |
++--------------+--------------------------------+-------------------------------------------------------------------+
+| MCUboot      | overwrite only mode            | * ``nrf5340dk/nrf5340/cpuapp``                                    |
+|              |                                | * ``nrf5340dk/nrf5340/cpuapp/ns``                                 |
+|              |                                | * ``thingy53/nrf5340/cpuapp``                                     |
+|              |                                | * ``thingy53/nrf5340/cpuapp/ns``                                  |
++--------------+--------------------------------+-------------------------------------------------------------------+
+| SUIT         | overwrite only mode            | * ``nrf54h20dk/nrf54h20/cpuapp``                                  |
++--------------+--------------------------------+-------------------------------------------------------------------+
+
+Signature algorithm
+-------------------
+
+Each board target that is supported by this sample, sets a specific signature algorithm for its DFU functionality.
+The signature algorithm determines the type of the key pair that is used to automatically sign the application image by the |NCS| build system (the private key) and to verify the application image by the bootloader (the public key).
+The bootloader must have access to the public key for its image verification process.
+The choice of the signature algorithm and the implementation of the public key storage solution have an impact on the security properties of the overall DFU solution.
+
+The configuration of the signature algorithm and the public key storage solution in this sample varies depending on the board target:
+
++--------------------------------+-------------------------------------------------------------------+---------------------------+---------------------------+
+| Signature algorithm            | Board targets                                                     | Public key storage        | Properties                |
++================================+===================================================================+===========================+===========================+
+| RSA-2048                       | * ``nrf52dk/nrf52832`` (only ``release`` configuration)           | Bootloader partition      | SW calculation,           |
+|                                | * ``nrf52833dk/nrf52833`` (only ``release`` configuration)        |                           | Signature derived from    |
+|                                | * ``nrf52840dk/nrf52840``                                         |                           | image hash                |
+|                                | * ``nrf5340dk/nrf5340/cpuapp``                                    |                           |                           |
+|                                | * ``nrf5340dk/nrf5340/cpuapp/ns``                                 |                           |                           |
+|                                | * ``thingy53/nrf5340/cpuapp``                                     |                           |                           |
+|                                | * ``thingy53/nrf5340/cpuapp/ns``                                  |                           |                           |
++--------------------------------+-------------------------------------------------------------------+---------------------------+---------------------------+
+| ED25519                        | * ``nrf54l15dk/nrf54l05/cpuapp`` (only ``release`` configuration) | Key Management Unit (KMU) | HW-accelerated (CRACEN),  |
+|                                | * ``nrf54l15dk/nrf54l10/cpuapp``                                  |                           | Signature derived from    |
+|                                | * ``nrf54l15dk/nrf54l15/cpuapp``                                  |                           | image (pure)              |
++--------------------------------+-------------------------------------------------------------------+---------------------------+---------------------------+
+
+.. note::
+   The SUIT DFU integration in this sample does not support the secure boot feature and its requirement for the signature verification.
+   The affected board targets are not listed in the table above.
+
+Each supported board target has the signature key file (the ``SB_CONFIG_BOOT_SIGNATURE_KEY_FILE`` Kconfig option) defined in the :file:`sysbuild/configuration` directory that is part of the sample directory.
+The signature key file is unique for each board target and is located in the :file:`<board_target>` subdirectory.
+For example, the signature key file for the ``nrf54l15dk/nrf54l15/cpuapp`` board target is located in the :file:`sysbuild/configuration/nrf54l15dk_nrf54l15_cpuapp` subdirectory.
+
+.. important::
+   The signature private keys defined by the sample are publicly available and intended for demonstration purposes only.
+   For production purposes, you must create and use your own signature key file that must be stored in a secure location.
 
 DFU mode
 --------
@@ -206,7 +252,7 @@ If the Model ID and Anti-Spoofing Private Key are not specified, the following d
 
    * Device Name: NCS locator tag
    * Model ID: ``0x4A436B``
-   * Anti-Spoofing Private Key (base64, uncompressed): ``rie10A7ONqwd77VmkxGsblPUbMt384qjDgcEJ/ctT9Y=``
+   * Anti-Spoofing Private Key (Base64, uncompressed): ``rie10A7ONqwd77VmkxGsblPUbMt384qjDgcEJ/ctT9Y=``
    * Device Type: Locator Tag
    * Notification Type: Fast Pair
    * Data-Only connection: true
@@ -508,7 +554,12 @@ Building and running
 
 .. include:: /includes/build_and_run_ns.txt
 
-When building the sample, you can provide the Fast Pair Model ID (``FP_MODEL_ID``) and the Fast Pair Anti-Spoofing Key (``FP_ANTI_SPOOFING_KEY``) as CMake options.
+.. |sample_or_app| replace:: sample
+.. |ipc_radio_dir| replace:: :file:`sysbuild/ipc_radio`
+
+.. include:: /includes/ipc_radio_conf.txt
+
+When building the sample, you can provide the Fast Pair Model ID (``SB_CONFIG_BT_FAST_PAIR_MODEL_ID``) and the Fast Pair Anti-Spoofing Key (``SB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY``) as sysbuild Kconfig options.
 If the data is not provided, the sample uses the default provisioning data obtained for the *NCS locator tag* (the locator tag debug Fast Pair Provider).
 See :ref:`ug_bt_fast_pair_provisioning` for details.
 
@@ -524,11 +575,6 @@ The build will use the :file:`prj_release.conf` configuration file instead of :f
 Check the contents of both files to learn which configuration changes you should apply when preparing the production build of your end product.
 
 The release build reduces the code size and RAM usage of the sample by disabling logging functionality and performing other optimizations.
-Additionally, it enables the Link Time Optimization (LTO) configuration through the :kconfig:option:`CONFIG_LTO` Kconfig option, which further reduces the code size.
-LTO is an advanced compilation technique that optimizes across all compiled units of an application at the link stage, rather than optimizing each unit separately.
-
-.. note::
-   Support for the LTO is experimental.
 
 See :ref:`cmake_options` for detailed instructions on how to add the ``FILE_SUFFIX=release`` option to your build.
 For example, when building from the command line, you can add it as follows:
@@ -537,6 +583,43 @@ For example, when building from the command line, you can add it as follows:
    :class: highlight
 
    west build -b *board_target* -- -DFILE_SUFFIX=release
+
+DFU build with the key storage in KMU
+=====================================
+
+The MCUboot-based targets that enable the ``SB_CONFIG_MCUBOOT_SIGNATURE_USING_KMU`` Kconfig option use the Key Management Unit (KMU) hardware peripheral to store the public key that is used by the bootloader to verify the application image.
+
+.. note::
+   The board targets based on the nRF54L SoC Series are currently the only targets that support the KMU-based key storage.
+   See the :ref:`fast_pair_locator_tag_dfu` section of this sample documentation for the details regarding the supported signature algorithms, public key storage location and the signature key file.
+
+Using KMU requires the provisioning operation of the public key to be performed manually.
+Before performing the provisioning operation, you need to ensure that your board target is fully erased:
+
+.. parsed-literal::
+   :class: highlight
+
+   nrfutil device erase --all
+
+Assuming that your current working directory points to this sample directory, you can perform the provisioning operation as follows:
+
+.. parsed-literal::
+   :class: highlight
+
+   west ncs-provision upload -s <soc> -k sysbuild/configuration/<board_target>/boot_signature_key_file_<algorithm>.pem --keyname UROT_PUBKEY
+
+* The ``<soc>`` placeholder is the SoC name used in your board target (for example, ``nrf54l15``).
+* The ``<board_target>`` placeholder is your board target name (for example, ``nrf54l15dk_nrf54l15_cpuapp``).
+* The ``<algorithm>`` placeholder is the algorithm used to generate the key pair for the application image signature generation and verification (for example, ``ed25519``).
+
+The examplary command for the ``nrf54l15dk/nrf54l15/cpuapp`` board target and the demonstration key file looks is as follows:
+
+.. parsed-literal::
+   :class: highlight
+
+   west ncs-provision upload -s nrf54l15 -k sysbuild/configuration/nrf54l15dk_nrf54l15_cpuapp/boot_signature_key_file_ed25519.pem --keyname UROT_PUBKEY
+
+See :ref:`ug_nrf54l_developing_provision_kmu` for further details regarding the KMU provisioning process.
 
 .. _fast_pair_locator_tag_motion_detector_test_build:
 
@@ -952,28 +1035,7 @@ To perform the DFU procedure, complete the following steps:
       #. Observe that **LED 2** is blinking, which indicates that the Fast Pair advertising is enabled.
       #. Perform DFU using the `nRF Connect Device Manager`_ mobile app:
 
-         1. Generate the SUIT envelope by building your application with the FOTA support over Bluetooth Low Energy.
-            You can find the generated :file:`root.suit` envelope in the :file:`<build_dir>/DFU` directory.
-            Alternatively, you can use the generated :file:`dfu_suit.zip` package in the :file:`<build_dir>/zephyr` directory.
-         #. Download the :file:`root.suit` envelope or the :file:`dfu_suit.zip` package to your device.
-
-            .. note::
-               `nRF Connect for Desktop`_ does not currently support the FOTA process.
-
-         #. Use the `nRF Connect Device Manager`_ mobile app to update your device with the new firmware.
-
-            a. Ensure that you can access the :file:`root.suit` envelope or the :file:`dfu_suit.zip` package from your phone or tablet.
-            #. In the mobile app, scan and select the device to update.
-            #. Switch to the :guilabel:`Image` tab.
-            #. In the **Firmware Upgrade** section, tap the :guilabel:`SELECT FILE` button and select the :file:`root.suit` envelope or the :file:`dfu_suit.zip` package.
-            #. Tap the :guilabel:`START` button.
-            #. Wait for the DFU to finish and verify that the application works properly.
-
-      .. note::
-         Support for SUIT updates is available starting from the following versions of the `nRF Connect Device Manager`_ mobile app:
-
-         * Version ``2.0`` on Android.
-         * Version ``1.7`` on iOS.
+         .. include:: /includes/suit_fota_update_nrfcdm_test_steps.txt
 
 Disabling the locator tag
 -------------------------
@@ -1096,8 +1158,8 @@ Fast Pair GATT Service
 This sample uses the :ref:`bt_fast_pair_readme` and its dependencies and is configured to meet the requirements of the Fast Pair standard together with its FMDN extension.
 For details about integrating Fast Pair in the |NCS|, see :ref:`ug_bt_fast_pair`.
 
-This sample enables the ``SB_CONFIG_BT_FAST_PAIR`` Kconfig option.
-With this option enabled, the build system calls the :ref:`bt_fast_pair_provision_script`, which automatically generates a hexadecimal file containing Fast Pair Model ID and Anti Spoofing Private Key.
+By default, this sample sets the ``SB_CONFIG_BT_FAST_PAIR_MODEL_ID`` and ``SB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY`` Kconfig options to use the Nordic device model that is intended for demonstration purposes.
+With these options set, the build system calls the :ref:`bt_fast_pair_provision_script` that automatically generates a hexadecimal file containing Fast Pair Model ID and the Anti-Spoofing Private Key.
 For more details about enabling Fast Pair for your application, see the :ref:`ug_bt_fast_pair_prerequisite_ops_kconfig` section in the Fast Pair integration guide.
 
 Bluetooth LE advertising data providers

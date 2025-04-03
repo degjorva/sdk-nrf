@@ -30,30 +30,23 @@ endif()
 
 if(CONFIG_BOOTLOADER_MCUBOOT AND NOT CONFIG_PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY)
   # Configure the secondary partition to be non-secure
-  if(SYSBUILD)
-    function(mcuboot_single_check val)
-      import_kconfig(CONFIG_ "${CMAKE_BINARY_DIR}/../mcuboot/zephyr/.config")
-      set(${val} "${CONFIG_SINGLE_APPLICATION_SLOT}" PARENT_SCOPE)
-    endfunction()
+  function(mcuboot_single_check val)
+    import_kconfig(CONFIG_ "${CMAKE_BINARY_DIR}/../mcuboot/zephyr/.config")
+    set(${val} "${CONFIG_SINGLE_APPLICATION_SLOT}" PARENT_SCOPE)
+  endfunction()
 
-    set(mcuboot_single_slot)
-    mcuboot_single_check(mcuboot_single_slot)
+  set(mcuboot_single_slot)
+  mcuboot_single_check(mcuboot_single_slot)
 
-    if(mcuboot_single_slot)
-      set_property(TARGET zephyr_property_target
-        APPEND PROPERTY TFM_CMAKE_OPTIONS
-        -DNRF_NS_SECONDARY=n
-      )
-    else()
-      set_property(TARGET zephyr_property_target
-        APPEND PROPERTY TFM_CMAKE_OPTIONS
-        -DNRF_NS_SECONDARY=y
-      )
-    endif()
+  if(mcuboot_single_slot)
+    set_property(TARGET zephyr_property_target
+      APPEND PROPERTY TFM_CMAKE_OPTIONS
+      -DNRF_NS_SECONDARY=n
+    )
   else()
     set_property(TARGET zephyr_property_target
       APPEND PROPERTY TFM_CMAKE_OPTIONS
-      -DNRF_NS_SECONDARY=$<TARGET_PROPERTY:partition_manager,PM_mcuboot_secondary_IS_ENABLED>
+      -DNRF_NS_SECONDARY=y
     )
   endif()
 endif()
@@ -168,6 +161,10 @@ set_property(TARGET zephyr_property_target
   -DCRYPTO_HW_ACCELERATOR=True
 )
 
+set_property(TARGET zephyr_property_target
+  APPEND PROPERTY TFM_CMAKE_OPTIONS -DPLATFORM_DEFAULT_NV_SEED=OFF
+  )
+
 if(CONFIG_TFM_ALLOW_NON_SECURE_FAULT_HANDLING)
   set_property(TARGET zephyr_property_target
     APPEND PROPERTY TFM_CMAKE_OPTIONS
@@ -187,11 +184,27 @@ if(CONFIG_TFM_PROFILE_TYPE_MINIMAL)
     APPEND PROPERTY TFM_CMAKE_OPTIONS
     -DPLATFORM_DEFAULT_ROTPK=OFF
     -DPLATFORM_DEFAULT_IAK=OFF
-    -DPLATFORM_DEFAULT_NV_SEED=OFF
     -DPLATFORM_DEFAULT_OTP=OFF
     -DPLATFORM_DEFAULT_OTP_WRITEABLE=OFF
     -DPLATFORM_DEFAULT_NV_COUNTERS=OFF
   )
+elseif(NOT CONFIG_TFM_PARTITION_PROTECTED_STORAGE)
+  set_property(TARGET zephyr_property_target
+    APPEND PROPERTY TFM_CMAKE_OPTIONS
+    -DPLATFORM_DEFAULT_OTP=OFF
+    -DPLATFORM_DEFAULT_OTP_WRITEABLE=OFF
+    -DPLATFORM_DEFAULT_NV_COUNTERS=OFF
+    -DPLATFORM_DEFAULT_NV_SEED=OFF
+  )
+endif()
+
+if(CONFIG_TFM_PLATFORM_NV_COUNTER_MODULE_DISABLED)
+  set_property(TARGET zephyr_property_target
+    APPEND PROPERTY TFM_CMAKE_OPTIONS
+    -DPLATFORM_DEFAULT_OTP=OFF
+    -DPLATFORM_DEFAULT_OTP_WRITEABLE=OFF
+    -DPLATFORM_DEFAULT_NV_COUNTERS=OFF
+    )
 endif()
 
 if(NOT CONFIG_MBEDTLS_PSA_CRYPTO_STORAGE_C)
@@ -294,6 +307,13 @@ if(CONFIG_NRF_SECURE_APPROTECT_USER_HANDLING)
   )
 endif()
 
+if(CONFIG_IDENTITY_KEY_TFM)
+  set_property(TARGET zephyr_property_target
+    APPEND PROPERTY TFM_CMAKE_OPTIONS
+    -DCONFIG_IDENTITY_KEY_TFM=ON
+  )
+endif()
+
 zephyr_include_directories(${ZEPHYR_NRF_MODULE_DIR}/include/tfm)
 
 # Default values from config_base.h in TF-M.
@@ -314,7 +334,7 @@ set(CRYPTO_ASYM_ENCRYPT_MODULE_ENABLED     ${CONFIG_TFM_CRYPTO_ASYM_ENCRYPT_MODU
 set(CRYPTO_KEY_DERIVATION_MODULE_ENABLED   ${CONFIG_TFM_CRYPTO_KEY_DERIVATION_MODULE_ENABLED})
 set(CRYPTO_PAKE_MODULE_ENABLED             ${CONFIG_TFM_CRYPTO_PAKE_MODULE_ENABLED})
 set(CRYPTO_IOVEC_BUFFER_SIZE               ${CONFIG_TFM_CRYPTO_IOVEC_BUFFER_SIZE})
-set(CRYPTO_NV_SEED                         ${CONFIG_TFM_CRYPTO_NV_SEED})
+set(CRYPTO_NV_SEED                         0)
 set(CRYPTO_SINGLE_PART_FUNCS_DISABLED      ${CONFIG_TFM_CRYPTO_SINGLE_PART_FUNCS_DISABLED})
 set(CRYPTO_STACK_SIZE                      ${CONFIG_TFM_CRYPTO_PARTITION_STACK_SIZE})
 set(CRYPTO_LIBRARY_ABI_COMPAT              ON)
@@ -327,7 +347,7 @@ set(ATTEST_TOKEN_PROFILE_PSA_IOT_1         ${CONFIG_TFM_ATTEST_TOKEN_PROFILE_PSA
 set(ATTEST_TOKEN_PROFILE_PSA_2_0_0         ${CONFIG_TFM_ATTEST_TOKEN_PROFILE_PSA_2_0_0})
 set(ATTEST_TOKEN_PROFILE_ARM_CCA           ${CONFIG_TFM_ATTEST_TOKEN_PROFILE_ARM_CCA})
 set(ITS_CREATE_FLASH_LAYOUT                ${CONFIG_TFM_ITS_CREATE_FLASH_LAYOUT})
-set(ITS_RAM_FS                             ${CONFIG_TFM_TS_RAM_FS})
+set(ITS_RAM_FS                             ${CONFIG_TFM_ITS_RAM_FS})
 set(ITS_VALIDATE_METADATA_FROM_FLASH       ${CONFIG_TFM_ITS_VALIDATE_METADATA_FROM_FLASH})
 set(ITS_MAX_ASSET_SIZE                     ${CONFIG_TFM_ITS_MAX_ASSET_SIZE})
 set(ITS_BUF_SIZE                           ${CONFIG_TFM_ITS_BUF_SIZE})
@@ -359,8 +379,6 @@ set_property(TARGET zephyr_property_target
   -DTFM_EXTRA_CONFIG_PATH="${CMAKE_CURRENT_BINARY_DIR}/config_extra.cmake"
 )
 
-if(SYSBUILD)
-  set(BYPRODUCT_KERNEL_SIGNED_HEX_NAME "${CMAKE_BINARY_DIR}/zephyr/tfm_merged.hex"
-      CACHE FILEPATH "Kernel hex file" FORCE
-  )
-endif()
+set(BYPRODUCT_KERNEL_SIGNED_HEX_NAME "${CMAKE_BINARY_DIR}/zephyr/tfm_merged.hex"
+    CACHE FILEPATH "Kernel hex file" FORCE
+)

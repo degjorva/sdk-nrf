@@ -47,8 +47,12 @@ int lwm2m_rai_req(enum lwm2m_rai_mode mode)
 NRF_MODEM_LIB_ON_INIT(lwm2m_init_rai, lwm2m_init_rai, NULL);
 static void lwm2m_init_rai(int ret, void *ctx)
 {
-	ARG_UNUSED(ret);
 	ARG_UNUSED(ctx);
+
+	if (ret != 0) {
+		LOG_ERR("Modem library did not initialize: %d", ret);
+		return;
+	}
 
 	int r;
 
@@ -141,7 +145,7 @@ static void lwm2m_set_socket_state(int sock_fd, enum lwm2m_socket_states state)
 	}
 
 	LOG_DBG("Set socket option SO_RAI with value %s\n", opt_names[state]);
-	ret = setsockopt(sock_fd, SOL_SOCKET, SO_RAI, &optval, sizeof(optval));
+	ret = zsock_setsockopt(sock_fd, SOL_SOCKET, SO_RAI, &optval, sizeof(optval));
 
 	if (ret < 0) {
 		ret = -errno;

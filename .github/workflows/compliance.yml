@@ -18,7 +18,7 @@ jobs:
         git-ref: ${{ github.event.pull_request.head.sha }}
 
     - name: cache-pip
-      uses: actions/cache@v3
+      uses: actions/cache@2f8e54208210a422b2efd51efaa6bd6d7ca8920f # v3
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-doc-pip
@@ -27,8 +27,8 @@ jobs:
       working-directory: ncs/nrf
       run: |
         pip3 install -U pip
-        pip3 install -U setuptools
         pip3 install -U wheel
+        grep -E "^setuptools" scripts/requirements-fixed.txt | cut -d ' ' -f '1' | xargs pip3 install -U
         grep -E "^python-magic=|^junitparser|^lxml|^gitlint|^pylint|^pykwalify|^yamllint|^unidiff" scripts/requirements-fixed.txt | cut -d ' ' -f '1' | xargs pip3 install -U
         grep -E "^west" scripts/requirements-fixed.txt | cut -d ' ' -f '1' | xargs pip3 install -U
         pip3 show -f west
@@ -44,6 +44,7 @@ jobs:
         (echo "::error ::Merge commits not allowed, rebase instead";false)
 
         git rebase origin/${BASE_REF}
+        west update
         # debug
         git log  --pretty=oneline | head -n 10
 
@@ -70,10 +71,10 @@ jobs:
         git log --pretty=oneline | head -n 10
         # For now we run KconfigBasic, but we should transition to Kconfig
         $ZEPHYR_BASE/scripts/ci/check_compliance.py --annotate -e Kconfig \
-        -e KconfigBasicNoModules -e ClangFormat -c origin/${BASE_REF}..
+        -e KconfigBasicNoModules -e ClangFormat -e Ruff -c origin/${BASE_REF}..
 
     - name: upload-results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
       continue-on-error: true
       if: contains(github.event.pull_request.user.login, 'dependabot[bot]') != true
       with:
@@ -106,3 +107,28 @@ jobs:
         if [ "${exit}" == "1" ]; then
           exit 1;
         fi
+
+    - name: Check added or updated links
+      working-directory: ncs/nrf
+      run: |
+        RE=".. _\`(.*)\`: (.*)"
+        LINKS=$(git diff --unified=0 "${{ github.event.pull_request.base.sha }}..HEAD" -- "doc/nrf/links.txt" | \
+                grep "^+" || true | \
+                grep -Ev "^(---|\+\+\+)" || true)
+
+        while IFS= read -r link; do
+          if [[ $link =~ $RE ]]; then
+            NAME=${BASH_REMATCH[1]}
+            URL=${BASH_REMATCH[2]}
+
+            echo -n "Checking URL for '$NAME' ($URL)... "
+            status=$(curl --write-out "%{http_code}" --output /dev/null --silent --head "$URL" || true)
+
+            if [[ "$status" -ne 200 ]]; then
+              echo "FAIL (HTTP code: ${status})"
+                exit 1
+              else
+                echo "OK"
+              fi
+          fi
+        done <<< "$LINKS"

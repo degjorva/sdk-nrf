@@ -174,7 +174,7 @@ Working with nRF91 Series
 * Added support for :ref:`nrf91_modem_trace_uart_snippet`.
   Snippet is used for nRF91 modem tracing with the UART backend for the following applications and samples:
 
-  * :ref:`asset_tracker_v2`
+  * Asset Tracker v2
   * :ref:`serial_lte_modem`
   * All samples that use nRF91 Series DK except for :ref:`slm_shell_sample`, :ref:`modem_trace_flash`, :ref:`modem_trace_backend_sample`.
 
@@ -344,7 +344,7 @@ Asset Tracker v2
 
 * Updated:
 
-  * Default value of the Kconfig option :ref:`CONFIG_DATA_ACTIVE_TIMEOUT_SECONDS <CONFIG_DATA_ACTIVE_TIMEOUT_SECONDS>` is changed to 300 seconds.
+  * Default value of the Kconfig option ``CONFIG_DATA_ACTIVE_TIMEOUT_SECONDS`` is changed to 300 seconds.
   * Enabled link time optimization to reduce the flash size of the application.
     You can disable this using the Kconfig option :kconfig:option:`CONFIG_ASSET_TRACKER_V2_LTO`.
   * Replaced overlay arguments ``OVERLAY_CONFIG`` and ``DTC_OVERLAY_FILE`` with the new Zephyr overlay arguments ``EXTRA_CONF_FILE`` and ``EXTRA_DTC_OVERLAY_FILE`` so as to avoid overriding of board overlay for the nRF9160 DK v0.14.0.
@@ -1330,7 +1330,7 @@ Documentation
     * :ref:`release_notes`, :ref:`software_maturity`, :ref:`known_issues`, :ref:`glossary`, and :ref:`dev-model` are now located under :ref:`releases_and_maturity`.
 
   * The :ref:`ug_thread` documentation to improve the overall presentation and add additional details where necessary.
-  * The :ref:`ug_nrf9160_gs` and :ref:`ug_thingy91_gsg` instructions to use the `Cellular Monitor app`_ instead of Programmer for the :ref:`nrf9160_gs_updating_fw` and :ref:`thingy91_update_firmware` sections, respectively.
+  * The :ref:`ug_nrf9160_gs` and :ref:`ug_thingy91_gsg` instructions to use the `Cellular Monitor app`_ instead of Programmer for the respective sections about updating firmware.
     The instructions for using Programmer were moved to the :ref:`ug_nrf9160` and :ref:`ug_thingy91` pages.
   * All instances of LTE Link Monitor and Trace Collector apps by replacing them with the `Serial Terminal app`_ and the `Cellular Monitor app`_.
   * Renamed nRF91 AT Commands Reference Guide to `nRF9160 AT Commands Reference Guide`_, and added references to the `nRF91x1 AT Commands Reference Guide`_ in the documentation.

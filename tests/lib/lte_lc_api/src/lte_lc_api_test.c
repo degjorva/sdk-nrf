@@ -16,7 +16,7 @@
 #include "cmock_nrf_modem_at.h"
 #include "cmock_nrf_modem.h"
 
-#define TEST_EVENT_MAX_COUNT 10
+#define TEST_EVENT_MAX_COUNT 20
 
 static struct lte_lc_evt test_event_data[TEST_EVENT_MAX_COUNT];
 static struct lte_lc_ncell test_neighbor_cells[CONFIG_LTE_NEIGHBOR_CELLS_MAX];
@@ -2384,6 +2384,18 @@ void test_lte_lc_neighbor_cell_measurement_fail(void)
 	TEST_ASSERT_EQUAL(-EFAULT, ret);
 }
 
+/* Test that no callbacks are triggered by an %NCELLMEAS notification when
+ * lte_lc_neighbor_cell_measurement() has not been called.
+ */
+void test_lte_lc_neighbor_cell_measurement_no_request(void)
+{
+	strcpy(at_notif,
+	       "%NCELLMEAS: 0,\"00112233\",\"98712\",\"0AB9\",4800,7,63,31,"
+	       "456,4800,8,60,29,4,3500,9,99,18,5,5300,11\r\n");
+
+	at_monitor_dispatch(at_notif);
+}
+
 void test_lte_lc_neighbor_cell_measurement_normal(void)
 {
 	int ret;
@@ -2734,6 +2746,14 @@ void test_lte_lc_neighbor_cell_measurement_cell_id_missing_fail(void)
 	       "%NCELLMEAS:0,,\"98712\",\"0AB9\",4800,7,63,31,456,4800,"
 	       "8,60,29,4,3500,9,99,18,5,5300,11\r\n");
 
+	lte_lc_callback_count_expected = 1;
+
+	/* In case of an error, we're expected to receive an empty event. */
+	test_event_data[0].type = LTE_LC_EVT_NEIGHBOR_CELL_MEAS;
+	test_event_data[0].cells_info.current_cell.id = LTE_LC_CELL_EUTRAN_ID_INVALID;
+	test_event_data[0].cells_info.ncells_count = 0;
+	test_event_data[0].cells_info.gci_cells_count = 0;
+
 	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEAS", EXIT_SUCCESS);
 
 	ret = lte_lc_neighbor_cell_measurement(NULL);
@@ -2750,6 +2770,14 @@ void test_lte_lc_neighbor_cell_measurement_cell_id_too_big_fail(void)
 	       "%NCELLMEAS:0,\"FFFFFFFF\",\"98712\",\"0AB9\",4800,7,63,31,456,4800,"
 	       "8,60,29,4,3500,9,99,18,5,5300,11\r\n");
 
+	lte_lc_callback_count_expected = 1;
+
+	/* In case of an error, we're expected to receive an empty event. */
+	test_event_data[0].type = LTE_LC_EVT_NEIGHBOR_CELL_MEAS;
+	test_event_data[0].cells_info.current_cell.id = LTE_LC_CELL_EUTRAN_ID_INVALID;
+	test_event_data[0].cells_info.ncells_count = 0;
+	test_event_data[0].cells_info.gci_cells_count = 0;
+
 	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEAS", EXIT_SUCCESS);
 
 	ret = lte_lc_neighbor_cell_measurement(NULL);
@@ -2765,6 +2793,14 @@ void test_lte_lc_neighbor_cell_measurement_malformed_fail(void)
 	strcpy(at_notif,
 	       "%NCELLMEAS:0,\"00112233\",\"98712\",\"0AB9\",4800,7,63,31,456,4800,"
 	       "8,60,29,4,35 00,9,99,18,5,5300,11\r\n");
+
+	lte_lc_callback_count_expected = 1;
+
+	/* In case of an error, we're expected to receive an empty event. */
+	test_event_data[0].type = LTE_LC_EVT_NEIGHBOR_CELL_MEAS;
+	test_event_data[0].cells_info.current_cell.id = LTE_LC_CELL_EUTRAN_ID_INVALID;
+	test_event_data[0].cells_info.ncells_count = 0;
+	test_event_data[0].cells_info.gci_cells_count = 0;
 
 	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEAS", EXIT_SUCCESS);
 
@@ -3366,10 +3402,120 @@ void test_lte_lc_neighbor_cell_measurement_gci_max_length(void)
 void test_lte_lc_neighbor_cell_measurement_cancel(void)
 {
 	int ret;
+	struct lte_lc_ncellmeas_params params = {
+		.search_type = LTE_LC_NEIGHBOR_SEARCH_TYPE_DEFAULT,
+		.gci_count = 0,
+	};
+	strcpy(at_notif,
+	       "%NCELLMEAS:0,\"00112233\",\"98712\",\"0AB9\",4800,7,63,31,"
+	       "456,4800,8,60,29,4,3500,9,99,18,5,5300,11\r\n");
+
+	lte_lc_callback_count_expected = 2;
+
+	test_event_data[0].type = LTE_LC_EVT_NEIGHBOR_CELL_MEAS;
+	test_event_data[0].cells_info.current_cell.mcc = 987;
+	test_event_data[0].cells_info.current_cell.mnc = 12;
+	test_event_data[0].cells_info.current_cell.id = 0x00112233;
+	test_event_data[0].cells_info.current_cell.tac = 0x0AB9;
+	test_event_data[0].cells_info.current_cell.earfcn = 7;
+	test_event_data[0].cells_info.current_cell.timing_advance = 4800;
+	test_event_data[0].cells_info.current_cell.timing_advance_meas_time = 11;
+	test_event_data[0].cells_info.current_cell.measurement_time = 4800;
+	test_event_data[0].cells_info.current_cell.phys_cell_id = 63;
+	test_event_data[0].cells_info.current_cell.rsrp = 31;
+	test_event_data[0].cells_info.current_cell.rsrq = 456;
+	test_event_data[0].cells_info.ncells_count = 2;
+	test_event_data[0].cells_info.gci_cells_count = 0;
+
+	test_event_data[1].type = LTE_LC_EVT_NEIGHBOR_CELL_MEAS;
+	test_event_data[1].cells_info.current_cell.mcc = 987;
+	test_event_data[1].cells_info.current_cell.mnc = 12;
+	test_event_data[1].cells_info.current_cell.id = 0x00112233;
+	test_event_data[1].cells_info.current_cell.tac = 0x0AB9;
+	test_event_data[1].cells_info.current_cell.earfcn = 7;
+	test_event_data[1].cells_info.current_cell.timing_advance = 4800;
+	test_event_data[1].cells_info.current_cell.timing_advance_meas_time = 11;
+	test_event_data[1].cells_info.current_cell.measurement_time = 4800;
+	test_event_data[1].cells_info.current_cell.phys_cell_id = 63;
+	test_event_data[1].cells_info.current_cell.rsrp = 31;
+	test_event_data[1].cells_info.current_cell.rsrq = 456;
+	test_event_data[1].cells_info.ncells_count = 2;
+	test_event_data[1].cells_info.gci_cells_count = 0;
+
+	test_neighbor_cells[0].earfcn = 8;
+	test_neighbor_cells[0].time_diff = 3500;
+	test_neighbor_cells[0].phys_cell_id = 60;
+	test_neighbor_cells[0].rsrp = 29;
+	test_neighbor_cells[0].rsrq = 4;
+
+	test_neighbor_cells[1].earfcn = 9;
+	test_neighbor_cells[1].time_diff = 5300;
+	test_neighbor_cells[1].phys_cell_id = 99;
+	test_neighbor_cells[1].rsrp = 18;
+	test_neighbor_cells[1].rsrq = 5;
+
+	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEAS", EXIT_SUCCESS);
+
+	ret = lte_lc_neighbor_cell_measurement(&params);
+	TEST_ASSERT_EQUAL(EXIT_SUCCESS, ret);
 
 	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEASSTOP", EXIT_SUCCESS);
+
 	ret = lte_lc_neighbor_cell_measurement_cancel();
 	TEST_ASSERT_EQUAL(EXIT_SUCCESS, ret);
+
+	at_monitor_dispatch(at_notif);
+
+	/* Start a new measurement immediately, to make sure the cancel timeout does not mess
+	 * things up.
+	 */
+
+	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEAS", EXIT_SUCCESS);
+
+	ret = lte_lc_neighbor_cell_measurement(&params);
+	TEST_ASSERT_EQUAL(EXIT_SUCCESS, ret);
+
+	/* Wait until the cancel timeout would expire. */
+	k_sleep(K_MSEC(2100));
+
+	at_monitor_dispatch(at_notif);
+}
+
+void test_lte_lc_neighbor_cell_measurement_cancel_no_notif(void)
+{
+	int ret;
+	struct lte_lc_ncellmeas_params params = {
+		.search_type = LTE_LC_NEIGHBOR_SEARCH_TYPE_DEFAULT,
+		.gci_count = 0,
+	};
+
+	lte_lc_callback_count_expected = 1;
+
+	test_event_data[0].type = LTE_LC_EVT_NEIGHBOR_CELL_MEAS;
+	test_event_data[0].cells_info.current_cell.id = LTE_LC_CELL_EUTRAN_ID_INVALID;
+
+	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEAS", EXIT_SUCCESS);
+
+	ret = lte_lc_neighbor_cell_measurement(&params);
+	TEST_ASSERT_EQUAL(EXIT_SUCCESS, ret);
+
+	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEASSTOP", EXIT_SUCCESS);
+
+	ret = lte_lc_neighbor_cell_measurement_cancel();
+	TEST_ASSERT_EQUAL(EXIT_SUCCESS, ret);
+
+	/* After lte_lc_neighbor_cell_measurement_cancel(), new measurement can not be started
+	 * before a %NCELLMEAS notification is received or a timeout happens.
+	 */
+	ret = lte_lc_neighbor_cell_measurement(&params);
+	TEST_ASSERT_EQUAL(-EINPROGRESS, ret);
+
+	k_sleep(K_MSEC(2100));
+}
+
+void test_lte_lc_neighbor_cell_measurement_cancel_fail(void)
+{
+	int ret;
 
 	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEASSTOP", -NRF_ENOMEM);
 	ret = lte_lc_neighbor_cell_measurement_cancel();
@@ -3383,6 +3529,16 @@ void test_lte_lc_neighbor_cell_measurement_normal_invalid_field_format_fail(void
 		.search_type = LTE_LC_NEIGHBOR_SEARCH_TYPE_EXTENDED_LIGHT,
 		.gci_count = 0,
 	};
+
+	lte_lc_callback_count_expected = 16;
+
+	/* In case of an error, we're expected to receive an empty event. */
+	for (int i = 0; i < lte_lc_callback_count_expected; i++) {
+		test_event_data[i].type = LTE_LC_EVT_NEIGHBOR_CELL_MEAS;
+		test_event_data[i].cells_info.current_cell.id = LTE_LC_CELL_EUTRAN_ID_INVALID;
+		test_event_data[i].cells_info.ncells_count = 0;
+		test_event_data[i].cells_info.gci_cells_count = 0;
+	}
 
 	/* Syntax:
 	 * %NCELLMEAS: status
@@ -3548,6 +3704,16 @@ void test_lte_lc_neighbor_cell_measurement_gci_invalid_field_format_fail(void)
 		.search_type = LTE_LC_NEIGHBOR_SEARCH_TYPE_GCI_DEFAULT,
 		.gci_count = 10,
 	};
+
+	lte_lc_callback_count_expected = 18;
+
+	/* In case of an error, we're expected to receive an empty event. */
+	for (int i = 0; i < lte_lc_callback_count_expected; i++) {
+		test_event_data[i].type = LTE_LC_EVT_NEIGHBOR_CELL_MEAS;
+		test_event_data[i].cells_info.current_cell.id = LTE_LC_CELL_EUTRAN_ID_INVALID;
+		test_event_data[i].cells_info.ncells_count = 0;
+		test_event_data[i].cells_info.gci_cells_count = 0;
+	}
 
 	/* Syntax for GCI search types:
 	 * High level:
@@ -3759,6 +3925,16 @@ void test_lte_lc_neighbor_cell_measurement_normal_invalid_mccmnc_fail(void)
 {
 	int ret;
 
+	lte_lc_callback_count_expected = 2;
+
+	/* In case of an error, we're expected to receive an empty event. */
+	for (int i = 0; i < lte_lc_callback_count_expected; i++) {
+		test_event_data[i].type = LTE_LC_EVT_NEIGHBOR_CELL_MEAS;
+		test_event_data[i].cells_info.current_cell.id = LTE_LC_CELL_EUTRAN_ID_INVALID;
+		test_event_data[i].cells_info.ncells_count = 0;
+		test_event_data[i].cells_info.gci_cells_count = 0;
+	}
+
 	/* Invalid MCC */
 	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEAS", EXIT_SUCCESS);
 	ret = lte_lc_neighbor_cell_measurement(NULL);
@@ -3785,6 +3961,16 @@ void test_lte_lc_neighbor_cell_measurement_gci_invalid_mccmnc_fail(void)
 		.search_type = LTE_LC_NEIGHBOR_SEARCH_TYPE_GCI_EXTENDED_COMPLETE,
 		.gci_count = 2,
 	};
+
+	lte_lc_callback_count_expected = 2;
+
+	/* In case of an error, we're expected to receive an empty event. */
+	for (int i = 0; i < lte_lc_callback_count_expected; i++) {
+		test_event_data[i].type = LTE_LC_EVT_NEIGHBOR_CELL_MEAS;
+		test_event_data[i].cells_info.current_cell.id = LTE_LC_CELL_EUTRAN_ID_INVALID;
+		test_event_data[i].cells_info.ncells_count = 0;
+		test_event_data[i].cells_info.gci_cells_count = 0;
+	}
 
 	/* Invalid MCC */
 	__mock_nrf_modem_at_printf_ExpectAndReturn("AT%NCELLMEAS=5,2", EXIT_SUCCESS);

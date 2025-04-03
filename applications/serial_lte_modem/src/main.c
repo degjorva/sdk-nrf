@@ -43,9 +43,12 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_SLM_START_SLEEP),
 static struct k_work_delayable indicate_work;
 
 struct k_work_q slm_work_q;
+static atomic_t callback_wakeup_running;
 
 /* Forward declarations */
 static void indicate_wk(struct k_work *work);
+static void power_pin_callback_wakeup(const struct device *dev,
+				      struct gpio_callback *gpio_callback, uint32_t);
 
 NRF_MODEM_LIB_ON_INIT(lwm2m_init_hook, on_modem_lib_init, NULL);
 NRF_MODEM_LIB_ON_DFU_RES(main_dfu_hook, on_modem_dfu_res, NULL);
@@ -61,35 +64,28 @@ static void on_modem_lib_init(int ret, void *ctx)
 }
 
 #if defined(CONFIG_NRF_MODEM_LIB_ON_FAULT_APPLICATION_SPECIFIC)
-static void on_modem_failure_shutdown(struct k_work *item);
-static void on_modem_failure_reinit(struct k_work *item);
+static struct nrf_modem_fault_info modem_fault_info;
 
-K_WORK_DELAYABLE_DEFINE(modem_failure_shutdown_work, on_modem_failure_shutdown);
-K_WORK_DELAYABLE_DEFINE(modem_failure_reinit_work, on_modem_failure_reinit);
+static void on_modem_failure(struct k_work *)
+{
+	int ret;
+
+	rsp_send("\r\n#XMODEM: FAULT,0x%x,0x%x\r\n", modem_fault_info.reason,
+		 modem_fault_info.program_counter);
+
+	ret = nrf_modem_lib_shutdown();
+	rsp_send("\r\n#XMODEM: SHUTDOWN,%d\r\n", ret);
+
+	ret = nrf_modem_lib_init();
+	rsp_send("\r\n#XMODEM: INIT,%d\r\n", ret);
+}
+K_WORK_DEFINE(modem_failure_work, on_modem_failure);
 
 void nrf_modem_fault_handler(struct nrf_modem_fault_info *fault_info)
 {
-	rsp_send("\r\n#XMODEM: FAULT,0x%x,0x%x\r\n", fault_info->reason,
-		fault_info->program_counter);
-	/* For now we wait 10 ms to give the trace handler time to process trace data. */
-	k_work_reschedule(&modem_failure_shutdown_work, K_MSEC(10));
-}
+	modem_fault_info = *fault_info;
 
-static void on_modem_failure_shutdown(struct k_work *work)
-{
-	int ret = nrf_modem_lib_shutdown();
-
-	ARG_UNUSED(work);
-	rsp_send("\r\n#XMODEM: SHUTDOWN,%d\r\n", ret);
-	k_work_reschedule(&modem_failure_reinit_work, K_MSEC(10));
-}
-
-static void on_modem_failure_reinit(struct k_work *work)
-{
-	int ret = nrf_modem_lib_init();
-
-	ARG_UNUSED(work);
-	rsp_send("\r\n#XMODEM: INIT,%d\r\n", ret);
+	k_work_submit(&modem_failure_work);
 }
 #endif /* CONFIG_NRF_MODEM_LIB_ON_FAULT_APPLICATION_SPECIFIC */
 
@@ -156,19 +152,24 @@ static int configure_power_pin_interrupt(gpio_callback_handler_t handler, gpio_f
 		return err;
 	}
 
-	LOG_DBG("Configured interrupt (0x%x) on power pin (%u).", flags, pin);
+	LOG_DBG("Configured interrupt (0x%x) on power pin (%u) with handler (%p).",
+		flags, pin, handler);
 	return 0;
 }
 
-static void power_pin_callback_poweroff(const struct device *, struct gpio_callback *, uint32_t)
+static void slm_enter_sleep_work_fn(struct k_work *)
 {
-	LOG_INF("Power off triggered.");
 	slm_enter_sleep();
 }
 
-static void poweroff_interrupt_enabler(struct k_work *)
+static void power_pin_callback_poweroff(const struct device *dev,
+					struct gpio_callback *gpio_callback, uint32_t)
 {
-	configure_power_pin_interrupt(power_pin_callback_poweroff, GPIO_INT_EDGE_RISING);
+	static K_WORK_DEFINE(work, slm_enter_sleep_work_fn);
+
+	LOG_INF("Power off triggered.");
+	gpio_remove_callback(dev, gpio_callback);
+	k_work_submit(&work);
 }
 
 #endif /* POWER_PIN_IS_ENABLED */
@@ -244,27 +245,15 @@ static void indicate_stop(void)
 static void power_pin_callback_enable_poweroff(const struct device *dev,
 					       struct gpio_callback *gpio_callback, uint32_t)
 {
-	static K_WORK_DELAYABLE_DEFINE(work, poweroff_interrupt_enabler);
-
 	LOG_DBG("Enabling the poweroff interrupt shortly...");
 	gpio_remove_callback(dev, gpio_callback);
 
-	/* Enable the poweroff interrupt after a small delay
-	 * so that it doesn't fire right away (which it does if enabled here).
-	 */
-	k_work_schedule(&work, K_MSEC(1));
+	configure_power_pin_interrupt(power_pin_callback_poweroff, GPIO_INT_EDGE_RISING);
 }
 
-static void power_pin_callback_wakeup(const struct device *dev,
-				      struct gpio_callback *gpio_callback, uint32_t)
+static void power_pin_callback_wakeup_work_fn(struct k_work *)
 {
-	static atomic_t callback_running;
 	int err;
-
-	/* Prevent level triggered interrupt running this multiple times. */
-	if (!atomic_cas(&callback_running, false, true)) {
-		return;
-	}
 
 	LOG_INF("Resuming from idle.");
 	if (k_work_delayable_is_pending(&indicate_work)) {
@@ -278,17 +267,32 @@ static void power_pin_callback_wakeup(const struct device *dev,
 	}
 	err = slm_at_host_power_on();
 	if (err) {
-		atomic_set(&callback_running, false);
-		LOG_ERR("Failed to power on uart: %d", err);
+		LOG_ERR("Failed to power on uart: %d. Resetting SLM.", err);
+		gpio_remove_callback(gpio_dev, &gpio_cb);
+		slm_reset();
 		return;
 	}
 
+	atomic_set(&callback_wakeup_running, false);
+}
+
+static void power_pin_callback_wakeup(const struct device *dev,
+				      struct gpio_callback *gpio_callback, uint32_t)
+{
+	static K_WORK_DEFINE(work, power_pin_callback_wakeup_work_fn);
+
+	/* Prevent level triggered interrupt running this multiple times. */
+	if (!atomic_cas(&callback_wakeup_running, false, true)) {
+		return;
+	}
+
+	LOG_INF("Resuming from idle shortly...");
 	gpio_remove_callback(dev, gpio_callback);
 
 	/* Enable the poweroff interrupt only when the pin will be back to a nonactive state. */
 	configure_power_pin_interrupt(power_pin_callback_enable_poweroff, GPIO_INT_EDGE_RISING);
 
-	atomic_set(&callback_running, false);
+	k_work_submit(&work);
 }
 
 void slm_enter_idle(void)

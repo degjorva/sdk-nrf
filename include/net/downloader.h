@@ -55,6 +55,8 @@ enum downloader_evt_id {
 	 * - -EINVAL: Invalid configuration.
 	 * - -EAFNOSUPPORT: Unsupported address family (IPv4/IPv6).
 	 * - -EHOSTUNREACH: Failed to resolve the target address.
+	 * - -EMSGSIZE: TLS packet is larger than the nRF91 Modem can handle.
+	 * - -EMLINK: Maximum number of redirects reached.
 	 *
 	 * In case of @c ECONNRESET errors, returning zero from the callback will let the
 	 * library attempt to reconnect to the server and download the last fragment again.
@@ -185,6 +187,21 @@ struct downloader_host_cfg {
 	 * Set to @c AF_UNSPEC (0) to fallback to @c AF_INET if @c AF_INET6 does not work.
 	 */
 	int family;
+	/**
+	 * Callback to do client authentication.
+	 * This is called after connecting.
+	 */
+	int (*auth_cb)(int sock);
+	/**
+	 * CoAP Proxy-URI option.
+	 * This string is used in case you are requesting a proxied file from a CoAP server.
+	 */
+	const char *proxy_uri;
+	/**
+	 * Maximum number of HTTP redirects.
+	 * Use 0 to set the value of CONFIG_DOWNLOADER_MAX_REDIRECTS.
+	 */
+	uint8_t redirects_max;
 };
 
 /**

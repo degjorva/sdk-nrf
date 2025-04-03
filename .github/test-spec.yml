@@ -1,5 +1,9 @@
 # This is the Jenkins ci variant of the .github/labler.yaml
 
+"__EXCLUDE__":
+  - "**/VERSION"
+  - "**/*.rst"
+
 "CI-run-twister":
   - any:
       - "!.github/**/*"
@@ -8,7 +12,6 @@
       - "!test-manifests/**/*"
       - "!CODEOWNERS"
       - "!LICENSE"
-      - "!**/*.rst"
       - "!VERSION"
       - "!ncs_version.h.in"
 
@@ -129,10 +132,12 @@
   - "include/fw_info.*"
   - "include/mgmt/*"
   - "include/dfu/**/*"
+  - "include/drivers/flash/flash_ipuc.h"
   - "include/net/**/*"
   - "lib/lte_link_control/**/*"
   - "modules/mcuboot/**/*"
   - "modules/trusted-firmware-m/*"
+  - "drivers/flash/flash_ipuc/*"
   - "samples/cellular/*fota/**/*"
   - "samples/cellular/fmfu_smp_svr/**/*"
   - "samples/cellular/http_update/**/*"
@@ -148,6 +153,7 @@
   - "subsys/pcd/*"
   - "subsys/net/lib/*fota*/**/*"
   - "subsys/net/lib/downloader/**/*"
+  - "tests/drivers/flash/flash_ipuc/**/*"
   - "tests/subsys/bootloader/**/*"
   - "tests/subsys/dfu/**/*"
 
@@ -163,14 +169,19 @@
   - "samples/nrf5340/extxip_smp_svr/**/*"
   - "samples/bootloader/**/*"
   - "scripts/bootloader/**/*"
+  - "scripts/nrf_compress/**/*"
+  - "scripts/west_commands/ncs*"
   - "subsys/bootloader/**/*"
-  - "subsys/nonsecure/*"
   - "subsys/partition_manager/*"
   - "subsys/fw_info/**/*"
   - "subsys/mgmt/**/*"
   - "subsys/pcd/**/*"
+  - "subsys/nrf_compress/**/*"
   - "tests/subsys/bootloader/**/*"
   - "tests/subsys/dfu/**/*"
+  - "tests/subsys/pcd/**/*"
+  - "tests/subsys/kmu/**/*"
+  - "tests/subsys/nrf_compress/**/*"
   - "tests/modules/mcuboot/**/*"
 
 "CI-all-test":
@@ -247,27 +258,6 @@
   - "tests/subsys/bluetooth/mesh/**/*"
   - "samples/bluetooth/mesh/**/*"
 
-"CI-zigbee-test":
-  - "include/zigbee/**/*"
-  - "samples/zigbee/**/*"
-  - "subsys/zigbee/**/*"
-  - "tests/subsys/zigbee/**/*"
-  - "subsys/mpsl/**/*"
-  - "subsys/ieee802154/**/*"
-  - "subsys/bootloader/**/*"
-  - "subsys/partition_manager/**/*"
-  - "subsys/dfu/**/*"
-  - "subsys/fw_info/*"
-  - "subsys/pcd/**/*"
-  - "subsys/bluetooth/controller/*"
-  - "subsys/bluetooth/services/nus.c"
-  - "drivers/mpsl/**/*"
-  - "dts/bindings/radio_fem/**/*"
-  - "applications/ipc_radio/**/*"
-  - "modules/nrfxlib/nrf_802154/**/*"
-  - "modules/mcuboot/**/*"
-  - "applications/zigbee_weather_station/**/*"
-
 "CI-thingy91-test":
   - "modules/cjson/**/*"
   - "modules/azure-sdk-for-c/**/*"
@@ -276,9 +266,13 @@
   - "subsys/net/lib/azure_iot_hub/**/*"
   - "lib/date_time/**/*"
   - "drivers/sensor/sensor_sim/**/*"
-  - "applications/asset_tracker_v2/**/*"
   - "samples/net/aws_iot/**/*"
   - "samples/net/azure_iot_hub/**/*"
+  - "samples/net/coap_client/**/*"
+  - "samples/net/download/**/*"
+  - "samples/net/http_server/**/*"
+  - "samples/net/https_client/**/*"
+  - "samples/net/mqtt/**/*"
   - "samples/net/udp/**/*"
 
 "CI-apps-test":
@@ -363,6 +357,7 @@
   - "drivers/hw_cc3xx/*"
   - "drivers/entropy/*"
   - "modules/nrfxlib/nrf_802154/**/*"
+  - "modules/openthread/**/*"
 
 "CI-nfc-test":
   - "subsys/nfc/**/*"
@@ -563,19 +558,6 @@
   - "subsys/partition_manager/**/*"
   - "tests/subsys/net/lib/nrf_cloud/**/*"
 
-"CI-sidewalk-test":
-  - "subsys/bootloader/**/*"
-  - "subsys/partition_manager/**/*"
-  - "subsys/dfu/**/*"
-  - "modules/mcuboot/**/*"
-  - "subsys/fw_info/*"
-  - "subsys/pcd/**/*"
-  - "subsys/bluetooth/controller/*"
-  - any:
-      - "subsys/nrf_security/**/*"
-      - "!subsys/nrf_security/doc/**/*"
-      - "!subsys/nrf_security/*.rst"
-
 "CI-suit-dfu-test":
   - "include/bl*"
   - "include/fprotect.h"
@@ -602,22 +584,44 @@
 
 "CI-test-low-level":
   - "applications/sdp/**/*"
+  - "boards/nordic/nrf54lm20apdk/**/*"
+  - "boards/nordic/nrf54lv10apdk/**/*"
   - "drivers/gpio/**/*"
   - "dts/bindings/gpio/**/*"
   - "include/drivers/gpio/**/*"
   - "include/event_manager_proxy.h"
   - "subsys/event_manager_proxy/**/*"
+  - "samples/zephyr/drivers/adc/**/*"
+  - "samples/zephyr/drivers/audio/**/*"
+  - "samples/zephyr/drivers/i2c/**/*"
+  - "samples/zephyr/drivers/watchdog/**/*"
+  - "samples/zephyr/boards/nordic/**/*"
   - "samples/ipc/**/*"
   - "samples/event_manager_proxy/**/*"
   - "samples/peripheral/lpuart/**/*"
+  - "samples/zephyr/sensor/qdec/**/*"
+  - "samples/zephyr/subsys/settings/**/*"
   - "snippets/sdp/**/*"
-  - "tests/subsys/event_manager_proxy/**/*"
+  - "snippets/nrf54l09-switch-uart/**/*"
+  - "soc/nordic/nrf54l/**/*"
   - "tests/benchmarks/multicore/idle/**/*"
+  - "tests/drivers/audio/**/*"
   - "tests/drivers/gpio/**/*"
   - "tests/drivers/lpuart/**/*"
   - "tests/drivers/pwm/**/*"
   - "tests/drivers/sensor/**/*"
-  - "tests/drivers/audio/**/*"
+  - "tests/drivers/spi/**/*"
+  - "tests/drivers/uart/**/*"
+  - "tests/subsys/event_manager_proxy/**/*"
+  - "tests/zephyr/drivers/adc/**/*"
+  - "tests/zephyr/drivers/comparator/**/*"
+  - "tests/zephyr/drivers/gpio/**/*"
+  - "tests/zephyr/drivers/flash/**/*"
+  - "tests/zephyr/drivers/i2c/**/*"
+  - "tests/zephyr/drivers/mspi/**/*"
+  - "tests/zephyr/boards/nrf/**/*"
+  - "tests/zephyr/drivers/uart/**/*"
+  - "tests/zephyr/drivers/watchdog/**/*"
 
 "CI-ps-test":
   - "samples/nrf_rpc/protocols_serialization/**/*"
@@ -628,15 +632,11 @@
   - "samples/bluetooth/multiple_adv_sets/**/*"
   - "samples/nfc/record_text/**/*"
   - "samples/app_event_manager/**/*"
-  - "samples/sdfw/ssf_client/**/*"
   - "lib/dk_buttons_and_leds/**/*"
   - "subsys/app_event_manager/**/*"
   - "include/nfc/ndef/msg.h"
   - "include/nfc/ndef/record.h"
   - "include/nfc/ndef/text_rec.h"
   - "include/dk_buttons_and_leds.h"
-  - "include/sdfw/sdfw_services/echo_service.h"
-  - "include/sdfw/sdfw_services/reset_evt_service.h"
-  - "include/sdfw/sdfw_services/sdfw_update_service.h"
   - "include/app_event_manager/app_event_manager.h"
   - "include/sdfw/sdfw_services/ssf_errno.h"

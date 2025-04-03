@@ -6,9 +6,13 @@
 
 / {
 	aliases {
+		led = &led0;
 		watchdog0 = &wdt010;
+		/delete-property/ led1;
 	};
 };
+
+/delete-node/ &led1;
 
 &wdt010 {
 	status = "okay";

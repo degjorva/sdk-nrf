@@ -14,7 +14,7 @@
 
 #include <app-common/zap-generated/attributes/Accessors.h>
 #include <app/clusters/identify-server/identify-server.h>
-#include <app/server/OnboardingCodesUtil.h>
+#include <setup_payload/OnboardingCodesUtil.h>
 
 #include <zephyr/logging/log.h>
 
@@ -72,7 +72,7 @@ CHIP_ERROR AppTask::Init()
 		}
 		err = TemperatureManager::Instance().Init();
 		if (err != CHIP_NO_ERROR) {
-			LOG_ERR("TempMgr Init fail");
+			LOG_ERR("TemperatureManager Init fail");
 		}
 		return err;
 	} }));

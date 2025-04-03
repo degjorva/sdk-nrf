@@ -46,8 +46,6 @@ struct fota_download_url_data {
 	const char *file;
 	/** File name length */
 	size_t file_len;
-	/** HTTPs or CoAPs */
-	bool sec_tag_needed;
 };
 
 static void start_fota_download(struct k_work *work);
@@ -146,13 +144,11 @@ static int fota_download_url_parse(const char *uri,
 	parsed_uri->host_len = e - uri;
 	parsed_uri->file = e + 1;
 	parsed_uri->file_len = strlen(uri) - parsed_uri->host_len;
-	parsed_uri->sec_tag_needed =
-		strncmp(uri, "https://", 8) == 0 || strncmp(uri, "coaps://", 8) == 0;
 
 	return 0;
 }
 
-static int download_url_parse(const char *uri, int sec_tag)
+static int download_url_parse(const char *uri)
 {
 	int ret;
 	struct fota_download_url_data parsed_uri;
@@ -172,16 +168,6 @@ static int download_url_parse(const char *uri, int sec_tag)
 		return -ENOMEM;
 	}
 
-	if (parsed_uri.sec_tag_needed) {
-		if (sec_tag == -1) {
-			LOG_ERR("FOTA SMP sec tag not configured");
-			return -EINVAL;
-		}
-		fota_sec_tag = sec_tag;
-	} else {
-		fota_sec_tag = -1;
-	}
-
 	strncpy(fota_host, parsed_uri.host, parsed_uri.host_len);
 	fota_host[parsed_uri.host_len] = 0;
 
@@ -198,10 +184,24 @@ static void start_fota_download(struct k_work *work)
 	ret = fota_download_start_with_image_type(fota_host, fota_path, fota_sec_tag, 0, 0,
 						  active_dfu_type);
 	if (ret) {
-		struct fota_download_evt evt;
+		struct fota_download_evt evt = {
+			.id = FOTA_DOWNLOAD_EVT_ERROR
+		};
+
+		switch (ret) {
+		case -EINVAL:
+		case -E2BIG:
+			evt.cause = FOTA_DOWNLOAD_ERROR_CAUSE_INVALID_CONFIGURATION;
+			break;
+		case -EPROTONOSUPPORT:
+			evt.cause = FOTA_DOWNLOAD_ERROR_CAUSE_PROTO_NOT_SUPPORTED;
+			break;
+		default:
+			evt.cause = FOTA_DOWNLOAD_ERROR_CAUSE_INTERNAL;
+			break;
+		}
 
 		LOG_ERR("fota_download_start() failed, return code %d", ret);
-		evt.id = FOTA_DOWNLOAD_EVT_CANCELLED;
 		fota_download_callback(&evt);
 	}
 }
@@ -238,7 +238,7 @@ int fota_download_util_download_start(const char *download_uri,
 		return -EBUSY;
 	}
 
-	ret = download_url_parse(download_uri, sec_tag);
+	ret = download_url_parse(download_uri);
 	if (ret) {
 		return ret;
 	}
@@ -246,6 +246,7 @@ int fota_download_util_download_start(const char *download_uri,
 	LOG_INF("Download Path %s host %s", fota_path, fota_host);
 
 	active_dfu_type = dfu_target_type;
+	fota_sec_tag = sec_tag;
 
 	/* Register Callback */
 	ret = fota_download_util_client_init(

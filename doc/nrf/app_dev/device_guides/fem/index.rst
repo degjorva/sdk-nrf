@@ -12,6 +12,27 @@ Zephyr and the |NCS| provides support for developing applications with the follo
 .. list-table::
    :header-rows: 1
 
+   * - FEM device
+     - Implementation
+     - Supported SoCs
+   * - nRF2220
+     - nRF2220
+     - nRF52, nRF53, nRF54L
+   * - nRF21540
+     - nRF21540 GPIO
+     - nRF52, nRF53, nRF54L
+   * - nRF21540
+     - nRF21540 GPIO+SPI
+     - nRF52, nRF53
+   * - SKY66112-11
+     - Simple GPIO
+     - nRF52, nRF53
+
+The following hardware platforms with :term:`Front-End Module (FEM)` are supported by the |NCS|:
+
+.. list-table::
+   :header-rows: 1
+
    * - Hardware platform
      - PCA number
      - Board targets
@@ -40,11 +61,11 @@ The following FEM :term:`Shield` is available and defined in the :file:`nrf/boar
      - | `User Guide <nRF21540 EK User Guide_>`_
        | `Front-End Module Feature <nRF21540 Front-End Module_>`_
      - `nRF21540 DB product page`_
-
-Also, various Skyworks front-end modules are supported.
-For example, SKY66112-11EK has a 2-pin PA/LNA interface.
-
-The `Front-End Module Feature <nRF21540 Front-End Module_>`_ is supported on the nRF52 and nRF53 Series devices.
+   * - nRF2220 :term:`Evaluation Kit (EK)`
+     - PCA63558
+     - ``nrf2220ek``
+     -
+     -
 
 .. toctree::
    :maxdepth: 2
@@ -52,4 +73,5 @@ The `Front-End Module Feature <nRF21540 Front-End Module_>`_ is supported on the
 
    fem_software_support
    fem_power_models
+   2220ek_dev_guide
    21540ek_dev_guide

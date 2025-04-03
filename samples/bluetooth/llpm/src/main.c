@@ -153,7 +153,7 @@ static void adv_start(void)
 {
 	int err;
 
-	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad),
+	err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_2, ad, ARRAY_SIZE(ad),
 			      sd, ARRAY_SIZE(sd));
 	if (err) {
 		printk("Advertising failed to start (err %d)\n", err);
@@ -443,7 +443,7 @@ int main(void)
 
 	console_init();
 
-	printk("Starting Bluetooth LLPM example\n");
+	printk("Starting Bluetooth LLPM sample\n");
 
 	err = bt_enable(NULL);
 	if (err) {

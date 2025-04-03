@@ -39,7 +39,6 @@ config BT_GATT_DM_WORKQ_STACK_SIZE
 	# requirements.
 	int
 	default 1300 if BT_GATT_CACHING
-	default 1140 if BT_TINYCRYPT_ECC
 	default 1024
 
 config BT_GATT_DM_WORKQ_PRIO
@@ -66,6 +65,10 @@ config BT_GATT_DM_DATA_PRINT
 	bool "Enable functions for printing discovery related data"
 	help
 	  Enable functions for printing discovery related data
+
+config HEAP_MEM_POOL_ADD_SIZE_BT_GATT_DM
+	int
+	default 512
 
 module = BT_GATT_DM
 module-str = GATT database discovery

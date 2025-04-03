@@ -32,13 +32,13 @@ static struct {
 	struct modem_pipe *uart_pipe;
 	bool uart_pipe_open;
 	struct modem_backend_uart uart_backend;
-	uint8_t uart_backend_receive_buf[RECV_BUF_LEN];
-	uint8_t uart_backend_transmit_buf[TRANSMIT_BUF_LEN];
+	uint8_t uart_backend_receive_buf[CONFIG_SLM_CMUX_UART_BUFFER_SIZE];
+	uint8_t uart_backend_transmit_buf[CONFIG_SLM_CMUX_UART_BUFFER_SIZE];
 
 	/* CMUX */
 	struct modem_cmux instance;
-	uint8_t cmux_receive_buf[RECV_BUF_LEN];
-	uint8_t cmux_transmit_buf[TRANSMIT_BUF_LEN];
+	uint8_t cmux_receive_buf[CONFIG_MODEM_CMUX_WORK_BUFFER_SIZE];
+	uint8_t cmux_transmit_buf[CONFIG_MODEM_CMUX_WORK_BUFFER_SIZE];
 
 	/* CMUX channels (Data Link Connection Identifier); index = address - 1 */
 	struct cmux_dlci {
@@ -114,6 +114,10 @@ static void init_dlci(size_t dlci_idx, uint16_t recv_buf_size,
 
 static int cmux_write_at_channel(const uint8_t *data, size_t len)
 {
+	if (cmux.dlcis[cmux.at_channel].instance.state != MODEM_CMUX_DLCI_STATE_OPEN) {
+		return 0;
+	}
+
 	int ret = modem_pipe_transmit(cmux.dlcis[cmux.at_channel].pipe, data, len);
 
 	if (ret != len) {

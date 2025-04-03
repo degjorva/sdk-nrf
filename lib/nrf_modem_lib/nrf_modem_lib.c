@@ -5,6 +5,7 @@
  */
 
 #include <modem/nrf_modem_lib.h>
+#include <modem/nrf_modem_lib_trace.h>
 #include <nrf_modem.h>
 #include <nrf_modem_at.h>
 #include <zephyr/init.h>
@@ -22,7 +23,6 @@ LOG_MODULE_DECLARE(nrf_modem, CONFIG_NRF_MODEM_LIB_LOG_LEVEL);
 static void nrf_modem_lib_dfu_handler(uint32_t dfu_res);
 
 #ifdef CONFIG_SOC_SERIES_NRF91X
-#include <modem/nrf_modem_lib_trace.h>
 #include <nrfx_ipc.h>
 #include <pm_config.h>
 
@@ -86,8 +86,19 @@ static const struct nrf_modem_init_params init_params = {
 	},
 	.shmem.rx = {
 		.base = DT_REG_ADDR(DT_NODELABEL(cpucell_cpuapp_ipc_shm_heap)),
+#if CONFIG_NRF_MODEM_LIB_TRACE
+		.size = DT_REG_SIZE(DT_NODELABEL(cpucell_cpuapp_ipc_shm_heap)) / 2,
+#else
 		.size = DT_REG_SIZE(DT_NODELABEL(cpucell_cpuapp_ipc_shm_heap)),
+#endif
 	},
+#if CONFIG_NRF_MODEM_LIB_TRACE
+	.shmem.trace = {
+		.base = DT_REG_ADDR(DT_NODELABEL(cpucell_cpuapp_ipc_shm_heap)) +
+			DT_REG_SIZE(DT_NODELABEL(cpucell_cpuapp_ipc_shm_heap)) / 2,
+		.size = DT_REG_SIZE(DT_NODELABEL(cpucell_cpuapp_ipc_shm_heap)) / 2,
+	},
+#endif
 	.fault_handler = nrf_modem_fault_handler,
 	.dfu_handler = nrf_modem_lib_dfu_handler,
 };
@@ -169,6 +180,9 @@ int nrf_modem_lib_init(void)
 	err = nrf_modem_init(&init_params);
 	if (err) {
 		LOG_ERR("Modem library initialization failed, err %d", err);
+
+		/* Jump to the init callbacks and pass them the returned error. */
+		goto init_callbacks;
 	}
 
 #if CONFIG_NRF_MODEM_LIB_TRACE
@@ -182,6 +196,7 @@ int nrf_modem_lib_init(void)
 		log_fw_version_uuid();
 	}
 
+init_callbacks:
 	STRUCT_SECTION_FOREACH(nrf_modem_lib_init_cb, e) {
 		LOG_DBG("Modem init callback: %p", e->callback);
 		e->callback(err, e->context);

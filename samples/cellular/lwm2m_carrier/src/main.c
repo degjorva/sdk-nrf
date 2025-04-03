@@ -28,6 +28,7 @@ static void on_modem_lib_init(int ret, void *ctx)
 	ARG_UNUSED(ctx);
 
 	if (ret != 0) {
+		printk("Modem library did not initialize: %d\n", ret);
 		return;
 	}
 
@@ -74,11 +75,9 @@ void print_err(const lwm2m_carrier_event_t *evt)
 		[LWM2M_CARRIER_ERROR_FOTA_FAIL] =
 			"Modem firmware update failed",
 		[LWM2M_CARRIER_ERROR_CONFIGURATION] =
-			"Illegal object configuration detected",
+			"Configuration failure",
 		[LWM2M_CARRIER_ERROR_INIT] =
 			"Initialization failure",
-		[LWM2M_CARRIER_ERROR_RUN] =
-			"Configuration failure",
 		[LWM2M_CARRIER_ERROR_CONNECT] =
 			"Connection failure",
 	};

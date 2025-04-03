@@ -24,7 +24,7 @@ class SelectFlags(str, Enum):
 class Core(str, Enum):
     """SoC core"""
     app = "app"
-    net = "network"
+    net = "net"
     both = "both"
 
 
@@ -46,6 +46,11 @@ class Channel(Enum):
     left = 0
     right = 1
     NA = auto()
+
+class Transport(str, Enum):
+    """Transport type"""
+    broadcast = "broadcast"
+    unicast = "unicast"
 
 
 @dataclass

@@ -4,6 +4,15 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+/ {
+	aliases {
+		led = &led0;
+		/delete-property/ led1;
+	};
+};
+
+/delete-node/ &led1;
+
 &dma_fast_region {
 	status = "okay";
 };
@@ -34,5 +43,5 @@ dut: &uart120 {
 	pinctrl-0 = <&uart120_default_alt>;
 	pinctrl-1 = <&uart120_sleep_alt>;
 	pinctrl-names = "default", "sleep";
-	current-speed = <115200>;
+	current-speed = <4000000>;
 };

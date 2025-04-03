@@ -15,6 +15,40 @@ config BT_MESH_SETTINGS_WORKQ_STACK_SIZE
 
 endif
 
+if BT_MESH_USES_MBEDTLS_PSA
+
+config BT_MESH_MBEDTLS_BACKEND_ENABLE
+	bool
+	default y
+	imply NRF_SECURITY
+	imply MBEDTLS_ENABLE_HEAP
+	imply PSA_WANT_GENERATE_RANDOM
+
+config MBEDTLS_HEAP_SIZE
+	default 1024
+
+if BT_SETTINGS
+
+config BT_MESH_SECURE_STORAGE
+	bool
+	default y
+	imply TRUSTED_STORAGE
+	imply MBEDTLS_PSA_CRYPTO_STORAGE_C
+
+choice TRUSTED_STORAGE_BACKEND_AEAD_KEY
+	default TRUSTED_STORAGE_BACKEND_AEAD_KEY_HASH_UID if SOC_SERIES_NRF52X
+
+endchoice # TRUSTED_STORAGE_BACKEND_AEAD_KEY
+
+config BT_MESH_CRYPTO_KEY_INITIALIZER
+	bool
+	default y if TRUSTED_STORAGE_BACKEND_AEAD_KEY_DERIVE_FROM_HUK
+	imply HW_UNIQUE_KEY_WRITE_ON_CRYPTO_INIT if HW_UNIQUE_KEY_SUPPORTED
+
+endif # BT_SETTINGS
+
+endif # BT_MESH_USES_MBEDTLS_PSA
+
 if BT_MESH_ADV_EXT
 
 # Set the optimal advertiser configuration to improve performance of the Relay, GATT and Friend
@@ -124,20 +158,26 @@ config BT_MESH_USES_TFM_PSA
 	select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_IMPORT
 	select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_EXPORT
 
+config BT_MESH_KEY_IMPORTER
+	bool "Use key importer"
+	help
+	  Use key importer to read out the keys stored in settings subsystem
+	  and import them into PSA internal trusted storage. This is required if
+	  a provisioned device is still going to stay provisioned after changing
+	  from an image using TinyCrypt to an image that uses PSA crypto.
+
+config BT_MESH_KEY_IMPORTER_PRIO
+	int "Initialization priority for key importer"
+	depends on BT_MESH_KEY_IMPORTER
+	default KERNEL_INIT_PRIORITY_DEFAULT
+	help
+	  The key importer is initialized before the main application. It is initialized
+	  using system initialization macro with application level.
+
 choice TFM_PROFILE_TYPE
 	depends on BT_MESH_USES_TFM_PSA
 	default TFM_PROFILE_TYPE_NOT_SET
 endchoice
-
-config BT_MESH_DFU_METADATA_ON_BUILD
-	bool "Generate DFU metadata on build"
-	default y if BT_MESH_DFU_SRV
-	depends on SIGN_IMAGES
-	help
-	  Generate a JSON file containing all DFU related metadata upon
-	  application build. The JSON will be added to dfu application zip
-	  file stored in the project binary folder of your project, along
-	  with the application update image.
 
 rsource "Kconfig.models"
 rsource "Kconfig.dk_prov"

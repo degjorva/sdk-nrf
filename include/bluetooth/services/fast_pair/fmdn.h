@@ -7,6 +7,7 @@
 #ifndef BT_FAST_PAIR_FMDN_H_
 #define BT_FAST_PAIR_FMDN_H_
 
+#include <zephyr/bluetooth/conn.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/sys/util.h>
 
@@ -237,7 +238,7 @@ struct bt_fast_pair_fmdn_ring_cb {
  *  (see @ref bt_fast_pair_is_ready function).
  *
  *  This function must be called in the cooperative thread context or in the system initialization
- *  context (@ref SYS_INIT macro).
+ *  context (SYS_INIT macro).
  *
  *  @param cb Ringing callback structure.
  *
@@ -361,7 +362,7 @@ struct bt_fast_pair_fmdn_motion_detector_cb {
  *  (see @ref bt_fast_pair_is_ready function).
  *
  *  This function must be called in the cooperative thread context or in the system initialization
- *  context (@ref SYS_INIT macro).
+ *  context (SYS_INIT macro).
  *
  *  @param cb Motion detector callback structure.
  *
@@ -506,20 +507,49 @@ struct bt_fast_pair_fmdn_info_cb {
 	 */
 	void (*clock_synced)(void);
 
+	/** @brief Indicate that the peer was authenticated locally.
+	 *
+	 *  This callback is called to indicate that the connected peer was
+	 *  authenticated locally using the protocol defined in the FMDN
+	 *  Accessory specification. It is triggered on a successful Read
+	 *  Provisioning State operation on the Beacon Actions GATT
+	 *  characteristic.
+	 *
+	 *  This callback can be used to facilitate the FMDN firmware update
+	 *  flow by granting the authenticated connection read access to the
+	 *  GATT Firmware Revision characteristic that is part of the Device
+	 *  Information Service (DIS). By default, the read operations of the
+	 *  identifying information (for example, from the DIS characteristics)
+	 *  are blocked for unauthenticated peers. The firmware version,
+	 *  retrieved from the FMDN accessory, may be used by the authenticated
+	 *  peer (smartphone) to notify the user about the outdated firmware
+	 *  and the pending firmware update.
+	 *
+	 *  This callback is executed in the cooperative thread context. You
+	 *  can learn about the exact thread context by analyzing the
+	 *  @kconfig{CONFIG_BT_RECV_CONTEXT} configuration choice. By default, this
+	 *  callback is executed in the Bluetooth-specific workqueue thread
+	 *  (@kconfig{CONFIG_BT_RECV_WORKQ_BT}).
+	 *
+	 *  @param conn Authenticated connection object.
+	 */
+	void (*conn_authenticated)(struct bt_conn *conn);
+
 	/** @brief Indicate provisioning state changes.
 	 *
 	 *  This callback is called to indicate that the FMDN accessory has been
-	 *  successfully provisioned or unprovisioned.
+	 *  successfully provisioned or unprovisioned by the connected Bluetooth
+	 *  peer.
 	 *
-	 *  This callback also reports the initial provisioning state when the
-	 *  user enables Fast Pair with the @ref bt_fast_pair_enable API.
+	 *  This callback does not report the initial provisioning state when the
+	 *  user enables Fast Pair with the @ref bt_fast_pair_enable API. To check
+	 *  the initial state, use the @ref bt_fast_pair_fmdn_is_provisioned API.
 	 *
-	 *  The first callback is executed in the workqueue context after the
-	 *  @ref bt_fast_pair_enable function call. Subsequent callbacks are
-	 *  also executed in the cooperative thread context. You can learn about
-	 *  the exact thread context by analyzing the @kconfig{CONFIG_BT_RECV_CONTEXT}
-	 *  configuration choice. By default, this callback is executed in the
-	 *  Bluetooth-specific workqueue thread (@kconfig{CONFIG_BT_RECV_WORKQ_BT}).
+	 *  This callback is executed in the cooperative thread context. You
+	 *  can learn about the exact thread context by analyzing the
+	 *  @kconfig{CONFIG_BT_RECV_CONTEXT} configuration choice. By default, this
+	 *  callback is executed in the Bluetooth-specific workqueue thread
+	 *  (@kconfig{CONFIG_BT_RECV_WORKQ_BT}).
 	 *
 	 *  @param provisioned true if the accessory has been successfully provisioned.
 	 *                     false if the accessory has been successfully unprovisioned.
@@ -530,6 +560,20 @@ struct bt_fast_pair_fmdn_info_cb {
 	sys_snode_t node;
 };
 
+/** @brief Check the FMDN provisioning state.
+ *
+ *  This function can be used to synchronously check the FMDN provisioning state.
+ *  To track the provisioning state asynchronously, use the
+ *  @ref bt_fast_pair_fmdn_info_cb.provisioning_state_changed callback.
+ *
+ *  The function shall only be used after the Fast Pair module is enabled with the
+ *  @ref bt_fast_pair_enable API. In the disabled state, this function always returns
+ *  false.
+ *
+ *  @return True if the device is provisioned, false otherwise.
+ */
+bool bt_fast_pair_fmdn_is_provisioned(void);
+
 /** @brief Register the information callbacks in the FMDN module.
  *
  *  This function registers the information callbacks. You can call this function only
@@ -538,7 +582,7 @@ struct bt_fast_pair_fmdn_info_cb {
  *  register multiple instances of information callbacks.
  *
  *  This function must be called in the cooperative thread context or in the system initialization
- *  context (@ref SYS_INIT macro).
+ *  context (SYS_INIT macro).
  *
  *  @param cb Information callback structure.
  *
@@ -577,7 +621,7 @@ struct bt_fast_pair_fmdn_read_mode_cb {
  *  (see @ref bt_fast_pair_is_ready function).
  *
  *  This function must be called in the cooperative thread context or in the system initialization
- *  context (@ref SYS_INIT macro).
+ *  context (SYS_INIT macro).
  *
  *  @param cb Read mode callback structure.
  *

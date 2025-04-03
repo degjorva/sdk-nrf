@@ -16,6 +16,7 @@
 #include <sdc_hci_vs.h>
 
 #include "hci_internal.h"
+#include "hci_internal_wrappers.h"
 #include "ecdh.h"
 
 #define CMD_COMPLETE_MIN_SIZE (BT_HCI_EVT_HDR_SIZE \
@@ -572,7 +573,7 @@ void hci_internal_supported_commands(sdc_hci_ip_supported_commands_t *cmds)
 	cmds->hci_le_request_peer_sca = 1;
 #endif
 
-#if (defined(CONFIG_BT_HCI_RAW) && defined(CONFIG_BT_TINYCRYPT_ECC)) || defined(CONFIG_BT_CTLR_ECDH)
+#if defined(CONFIG_BT_CTLR_ECDH)
 	cmds->hci_le_read_local_p256_public_key = 1;
 	cmds->hci_le_generate_dhkey_v1 = 1;
 	cmds->hci_le_generate_dhkey_v2 = 1;
@@ -668,59 +669,6 @@ static void vs_zephyr_supported_commands(sdc_hci_vs_zephyr_supported_commands_t 
 	cmds->write_tx_power_level = 1;
 	cmds->read_tx_power_level = 1;
 #endif /* CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL */
-}
-
-static void vs_supported_commands(sdc_hci_vs_supported_vs_commands_t *cmds)
-{
-	memset(cmds, 0, sizeof(*cmds));
-
-	cmds->read_supported_vs_commands = 1;
-#if defined(CONFIG_BT_CTLR_SDC_LLPM)
-	cmds->llpm_mode_set = 1;
-#endif
-	cmds->conn_update = 1;
-	cmds->conn_event_extend = 1;
-	cmds->qos_conn_event_report_enable = 1;
-	cmds->event_length_set = 1;
-#if defined(CONFIG_BT_CTLR_LE_POWER_CONTROL)
-	cmds->write_remote_tx_power = 1;
-	cmds->set_power_control_request_params = 1;
-	cmds->read_average_rssi = 1;
-#endif
-#if defined(CONFIG_BT_CENTRAL)
-	cmds->central_acl_event_spacing_set = 1;
-#endif
-
-#if defined(CONFIG_BT_CTLR_SDC_EVENT_TRIGGER)
-	cmds->set_event_start_task = 1;
-#endif
-
-#if defined(CONFIG_BT_CONN)
-	cmds->get_next_conn_event_counter = 1;
-#endif
-
-#if defined(CONFIG_BT_CTLR_SDC_PAWR_ADV)
-	cmds->allow_parallel_connection_establishments = 1;
-#endif
-
-#if defined(CONFIG_BT_CONN)
-	cmds->min_val_of_max_acl_tx_payload_set = 1;
-#endif
-#if defined(CONFIG_BT_CTLR_ISO_TX_BUFFERS)
-	cmds->iso_read_tx_timestamp = 1;
-#endif
-#if defined(CONFIG_BT_CTLR_ADV_ISO)
-	cmds->big_reserved_time_set = 1;
-#endif
-#if defined(CONFIG_BT_CTLR_CONN_ISO)
-	cmds->cig_reserved_time_set = 1;
-	cmds->cis_subevent_length_set = 1;
-#endif
-
-#if defined(CONFIG_BT_OBSERVER)
-	cmds->scan_channel_map_set = 1;
-	cmds->scan_accept_ext_adv_packets_set = 1;
-#endif
 }
 #endif	/* CONFIG_BT_HCI_VS */
 
@@ -956,7 +904,7 @@ static uint8_t controller_and_baseband_cmd_put(uint8_t const * const cmd,
 	case SDC_HCI_OPCODE_CMD_CB_SET_CONTROLLER_TO_HOST_FLOW_CONTROL:
 		return sdc_hci_cmd_cb_set_controller_to_host_flow_control((void *)cmd_params);
 	case SDC_HCI_OPCODE_CMD_CB_HOST_BUFFER_SIZE:
-		return sdc_hci_cmd_cb_host_buffer_size((void *)cmd_params);
+		return sdc_hci_cmd_cb_host_buffer_size_wrapper((void *)cmd_params);
 	case SDC_HCI_OPCODE_CMD_CB_HOST_NUMBER_OF_COMPLETED_PACKETS:
 		return sdc_hci_cmd_cb_host_number_of_completed_packets((void *)cmd_params);
 #endif
@@ -1689,10 +1637,6 @@ static uint8_t vs_cmd_put(uint8_t const *const cmd, uint8_t *const raw_event_out
 		return sdc_hci_cmd_vs_zephyr_read_tx_power((void *)cmd_params,
 							   (void *)event_out_params);
 #endif /* CONFIG_BT_CTLR_TX_PWR_DYNAMIC_CONTROL */
-	case SDC_HCI_OPCODE_CMD_VS_READ_SUPPORTED_VS_COMMANDS:
-		*param_length_out += sizeof(sdc_hci_cmd_vs_read_supported_vs_commands_return_t);
-		vs_supported_commands((void *)event_out_params);
-		return 0;
 #if CONFIG_BT_CTLR_SDC_LLPM
 	case SDC_HCI_OPCODE_CMD_VS_LLPM_MODE_SET:
 		return sdc_hci_cmd_vs_llpm_mode_set((void *)cmd_params);

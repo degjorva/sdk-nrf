@@ -22,8 +22,6 @@ The sample supports the following development kits:
 
 .. include:: /includes/tfm.txt
 
-.. include:: /includes/hci_ipc_overlay.txt
-
 Overview
 ********
 
@@ -100,6 +98,11 @@ Building and running
 .. |sample path| replace:: :file:`samples/bluetooth/peripheral_hids_mouse`
 
 .. include:: /includes/build_and_run_ns.txt
+
+.. |sample_or_app| replace:: sample
+.. |ipc_radio_dir| replace:: :file:`sysbuild/ipc_radio`
+
+.. include:: /includes/ipc_radio_conf.txt
 
 .. include:: /includes/nRF54H20_erase_UICR.txt
 

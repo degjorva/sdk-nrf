@@ -18,6 +18,7 @@ LOG_MODULE_REGISTER(raw_tx_packet, CONFIG_LOG_DEFAULT_LEVEL);
 #include <zephyr/posix/sys/socket.h>
 #endif
 
+#include <zephyr/net/ethernet.h>
 #include <zephyr/net/socket.h>
 
 #include "net_private.h"
@@ -30,6 +31,9 @@ LOG_MODULE_REGISTER(raw_tx_packet, CONFIG_LOG_DEFAULT_LEVEL);
 #define IEEE80211_SEQ_CTRL_SEQ_NUM_MASK 0xFFF0
 #define IEEE80211_SEQ_NUMBER_INC BIT(4) /* 0-3 is fragment number */
 #define NRF_WIFI_MAGIC_NUM_RAWTX 0x12345678
+
+static struct net_mgmt_event_callback net_iface_mgmt_cb;
+K_SEM_DEFINE(wait_for_oper_up, 0, 1);
 
 struct beacon {
 	uint16_t frame_control;
@@ -168,7 +172,7 @@ static int setup_raw_pkt_socket(int *sockfd, struct sockaddr_ll *sa)
 	struct net_if *iface = NULL;
 	int ret;
 
-	*sockfd = socket(AF_PACKET, SOCK_RAW, htons(IPPROTO_RAW));
+	*sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 	if (*sockfd < 0) {
 		LOG_ERR("Unable to create a socket %d", errno);
 		return -1;
@@ -310,9 +314,27 @@ static void wifi_send_raw_tx_packets(void)
 	free(test_frame);
 }
 
+/* Net iface events handler */
+static void net_events_handler(struct net_mgmt_event_callback *cb,
+			       uint32_t mgmt_event, struct net_if *iface)
+{
+	switch (mgmt_event) {
+	case NET_EVENT_IF_UP:
+		LOG_DBG("Interface is up");
+		k_sem_give(&wait_for_oper_up);
+		break;
+	default:
+		break;
+	}
+}
+
 int main(void)
 {
 	int mode;
+
+	net_mgmt_init_event_callback(&net_iface_mgmt_cb, net_events_handler,
+				     NET_EVENT_IF_UP);
+	net_mgmt_add_event_callback(&net_iface_mgmt_cb);
 
 	mode = BIT(0);
 	/* This is to set mode to STATION */
@@ -334,6 +356,12 @@ int main(void)
 #else
 	wifi_set_channel();
 #endif
+	if (k_sem_take(&wait_for_oper_up,
+			K_SECONDS(CONFIG_RAW_TX_PKT_SAMPLE_WIFI_IFACE_OPER_UP_TIMEOUT_S)) != 0) {
+		LOG_ERR("Timeout waiting for iface to become operational after %d seconds",
+			CONFIG_RAW_TX_PKT_SAMPLE_WIFI_IFACE_OPER_UP_TIMEOUT_S);
+	}
+
 	wifi_send_raw_tx_packets();
 
 	return 0;

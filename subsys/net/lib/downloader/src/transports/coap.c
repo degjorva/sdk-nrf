@@ -4,6 +4,13 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+
+#ifdef _POSIX_C_SOURCE
+#undef _POSIX_C_SOURCE
+#endif
+/* Define _POSIX_C_SOURCE before including <string.h> in order to use `strtok_r`. */
+#define _POSIX_C_SOURCE 200809L
+
 #include <zephyr/kernel.h>
 #include <zephyr/net/coap.h>
 #include <zephyr/net/socket.h>
@@ -24,6 +31,9 @@ LOG_MODULE_DECLARE(downloader, CONFIG_DOWNLOADER_LOG_LEVEL);
 #define COAP_VER	     1
 #define FILENAME_SIZE	     CONFIG_DOWNLOADER_MAX_FILENAME_SIZE
 #define COAP_PATH_ELEM_DELIM "/"
+
+#define COAP "coap://"
+#define COAPS "coaps://"
 
 struct transport_params_coap {
 	/** Flag whether config is set */
@@ -54,14 +64,13 @@ struct transport_params_coap {
 	bool new_data_req;
 	/** Request retransmission */
 	bool retransmission_req;
+	/* Proxy-URI option value */
+	const char *proxy_uri;
+	/* Client auth callback */
+	int (*auth_cb)(int sock);
 };
 
 BUILD_ASSERT(CONFIG_DOWNLOADER_TRANSPORT_PARAMS_SIZE >= sizeof(struct transport_params_coap));
-
-/* declaration of strtok_r appears to be missing in some cases,
- * even though it's defined in the minimal libc, so we forward declare it
- */
-extern char *strtok_r(char *str, const char *sep, char **state);
 
 static int coap_get_current_from_response_pkt(const struct coap_packet *cpkt)
 {
@@ -280,11 +289,8 @@ static int coap_request_send(struct downloader *dl)
 		return err;
 	}
 
-	err = dl_parse_url_file(dl->file, file, sizeof(file));
-	if (err) {
-		LOG_ERR("Unable to parse url");
-		return err;
-	}
+	LOG_DBG("dl->file: %s", dl->file);
+	strncpy(file, dl->file, sizeof(file) - 1);
 
 	path_elem = strtok_r(file, COAP_PATH_ELEM_DELIM, &path_elem_saveptr);
 	do {
@@ -306,6 +312,15 @@ static int coap_request_send(struct downloader *dl)
 	if (err) {
 		LOG_ERR("Unable to add size2 option");
 		return err;
+	}
+
+	if (coap->proxy_uri != NULL) {
+		err = coap_packet_append_option(&request, COAP_OPTION_PROXY_URI,
+			coap->proxy_uri, strlen(coap->proxy_uri));
+		if (err) {
+			LOG_ERR("Unable to add Proxy-URI option");
+			return err;
+		}
 	}
 
 	if (!has_pending(dl)) {
@@ -342,9 +357,9 @@ static int coap_request_send(struct downloader *dl)
 
 static bool dl_coap_proto_supported(struct downloader *dl, const char *url)
 {
-	if (strncmp(url, "coaps://", 8) == 0) {
+	if (strncmp(url, COAPS, (sizeof(COAPS) - 1)) == 0) {
 		return true;
-	} else if (strncmp(url, "coap://", 7) == 0) {
+	} else if (strncmp(url, COAP, (sizeof(COAP) - 1)) == 0) {
 		return true;
 	}
 
@@ -369,14 +384,14 @@ static int dl_coap_init(struct downloader *dl, struct downloader_host_cfg *dl_ho
 		coap->cfg = tmp_cfg;
 		coap->cfg_set = cfg_set;
 	} else {
-		coap->cfg.block_size = 5;
+		coap->cfg.block_size = COAP_BLOCK_1024;
 		coap->cfg.max_retransmission = 4;
 	}
 
 	coap->sock.proto = IPPROTO_UDP;
 	coap->sock.type = SOCK_DGRAM;
 
-	if (strncmp(url, "coaps://", 8) == 0 ||
+	if (strncmp(url, COAPS, (sizeof(COAPS) - 1)) == 0 ||
 	    (dl_host_cfg->sec_tag_count != 0 && dl_host_cfg->sec_tag_list != NULL)) {
 		coap->sock.proto = IPPROTO_DTLS_1_2;
 		coap->sock.type = SOCK_DGRAM;
@@ -404,6 +419,10 @@ static int dl_coap_init(struct downloader *dl, struct downloader_host_cfg *dl_ho
 		LOG_DBG("Enabled native TLS");
 		coap->sock.type |= SOCK_NATIVE_TLS;
 	}
+
+	/* Copy proxy-uri and auth-cb to internal struct */
+	coap->proxy_uri = dl_host_cfg->proxy_uri;
+	coap->auth_cb = dl_host_cfg->auth_cb;
 
 	return 0;
 }
@@ -447,6 +466,11 @@ cleanup:
 	}
 
 	coap->new_data_req = true;
+
+	/* Run auth callback if set */
+	if (coap->auth_cb != NULL) {
+		return coap->auth_cb(coap->sock.fd);
+	}
 
 	return err;
 }

@@ -5,6 +5,7 @@
  */
 
 #include "matter_event_handler.h"
+#include "group_data_provider.h"
 
 #ifdef CONFIG_CHIP_OTA_REQUESTOR
 #include "dfu/ota/ota_util.h"
@@ -13,8 +14,8 @@
 #include <platform/ConnectivityManager.h>
 
 #ifdef CONFIG_CHIP_NFC_COMMISSIONING
-#include <app/server/OnboardingCodesUtil.h>
 #include <platform/NFCManager.h>
+#include <setup_payload/OnboardingCodesUtil.h>
 #endif
 
 #include <zephyr/logging/log.h>
@@ -59,6 +60,9 @@ void DefaultEventHandler(const ChipDeviceEvent *event, intptr_t /* unused */)
 		InitBasicOTARequestor();
 		break;
 #endif /* CONFIG_CHIP_OTA_REQUESTOR */
+	case DeviceEventType::kFactoryReset:
+		GroupDataProviderImpl::Instance().WillBeFactoryReset();
+		break;
 	default:
 		break;
 	}

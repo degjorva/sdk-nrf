@@ -46,11 +46,15 @@
 #include <ram_pwrdn.h>
 #endif
 
+#ifdef CONFIG_CHIP_STORE_KEYS_IN_KMU
+#include <platform/nrfconnect/KMUKeyAllocator.h>
+#endif
+
 #include <app/InteractionModelEngine.h>
 #include <app/clusters/network-commissioning/network-commissioning.h>
-#include <app/server/OnboardingCodesUtil.h>
 #include <credentials/examples/DeviceAttestationCredsExample.h>
 #include <platform/nrfconnect/ExternalFlashManager.h>
+#include <setup_payload/OnboardingCodesUtil.h>
 
 LOG_MODULE_DECLARE(app, CONFIG_CHIP_APP_LOG_LEVEL);
 
@@ -72,6 +76,10 @@ Clusters::NetworkCommissioning::Instance Nrf::Matter::InitData::sWiFiCommissioni
 chip::Crypto::PSAOperationalKeystore Nrf::Matter::InitData::sOperationalKeystoreDefault{};
 #endif
 
+#ifdef CONFIG_CHIP_STORE_KEYS_IN_KMU
+chip::DeviceLayer::KMUSessionKeystore Nrf::Matter::InitData::sKMUSessionKeystoreDefault{};
+#endif
+
 #ifdef CONFIG_CHIP_FACTORY_DATA
 FactoryDataProvider<InternalFlashFactoryData> Nrf::Matter::InitData::sFactoryDataProviderDefault{};
 #endif
@@ -87,6 +95,9 @@ Nrf::Matter::InitData sLocalInitData{ .mNetworkingInstance = nullptr,
 #endif
 #ifdef CONFIG_CHIP_CRYPTO_PSA
 				      .mOperationalKeyStore = nullptr,
+#endif
+#ifdef CONFIG_CHIP_STORE_KEYS_IN_KMU
+				      .mSessionKeystore = nullptr,
 #endif
 				      .mPreServerInitClbk = nullptr,
 				      .mPostServerInitClbk = nullptr };
@@ -275,6 +286,13 @@ void DoInitChipServer(intptr_t /* unused */)
 
 #ifdef CONFIG_CHIP_CRYPTO_PSA
 	sLocalInitData.mServerInitParams->operationalKeystore = sLocalInitData.mOperationalKeyStore;
+#endif
+
+/* Set KMUKeyAllocator for devices that supports KMU */
+#ifdef CONFIG_CHIP_STORE_KEYS_IN_KMU
+	static KMUKeyAllocator kmuAllocator;
+	Crypto::SetPSAKeyAllocator(&kmuAllocator);
+	sLocalInitData.mServerInitParams->sessionKeystore = sLocalInitData.mSessionKeystore;
 #endif
 
 	VerifyOrReturn(sLocalInitData.mServerInitParams, LOG_ERR("No valid server initialization parameters"));

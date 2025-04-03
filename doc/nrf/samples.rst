@@ -11,6 +11,14 @@ Zephyr also provides a variety of :zephyr:code-sample-category:`samples`, includ
 These samples are a good starting point for understanding how to put together your own application.
 However, Zephyr samples and applications are not tested and verified to work with the |NCS| releases.
 
+.. |sample_test| replace:: samples
+
+.. |sample_test_file| replace:: :file:`nrf/samples/zephyr`
+
+.. |zephyr_sample_test_file| replace:: :file:`zephyr/samples`
+
+.. include:: /includes/zephyr_sample_test.txt
+
 .. samples_general_info_start
 
 General information about samples in the |NCS|
@@ -34,9 +42,9 @@ General information about samples in the |NCS|
    :caption: Subpages:
 
    samples/amazon_sidewalk
-   samples/bl
    samples/fast_pair
    samples/mesh
+   samples/bl
    samples/cellular
    samples/crypto
    samples/debug
@@ -51,12 +59,11 @@ General information about samples in the |NCS|
    samples/nrf5340
    samples/peripheral
    samples/pmic
-   samples/sdfw
-   samples/sensor
    samples/serialization
+   samples/sensor
    samples/suit
-   samples/tfm
    samples/thread
-   samples/zigbee
+   samples/tfm
    samples/wifi
+   samples/zigbee
    samples/other

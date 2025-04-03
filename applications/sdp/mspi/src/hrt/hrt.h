@@ -9,74 +9,125 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <drivers/mspi/nrfe_mspi.h>
+#include <zephyr/drivers/mspi.h>
 
-#define SCLK_PIN 0
-#define D0_PIN	 1
-#define D1_PIN	 2
-#define D2_PIN	 3
-#define D3_PIN	 4
-#define CS_PIN	 5
+#define VPRCSR_NORDIC_OUT_HIGH 1
+#define VPRCSR_NORDIC_OUT_LOW  0
 
-/* Max word size. */
-#define MAX_WORD_SIZE NRF_VPR_CSR_VIO_SHIFT_CNT_OUT_BUFFERED_MAX
+#define VPRCSR_NORDIC_DIR_OUTPUT 1
+#define VPRCSR_NORDIC_DIR_INPUT	 0
 
-/* Macro for getting direction mask for specified pin and direction. */
-#define PIN_DIR_MASK(PIN_NUM, DIR)                                                                 \
-	(VPRCSR_NORDIC_DIR_PIN##PIN_NUM##_##DIR << VPRCSR_NORDIC_DIR_PIN##PIN_NUM##_Pos)
+#define BITS_IN_WORD 32
+#define BITS_IN_BYTE 8
 
-/* Macro for getting output mask for specified pin. */
-#define PIN_DIR_OUT_MASK(PIN_NUM) PIN_DIR_MASK(PIN_NUM, OUTPUT)
+typedef enum {
+	HRT_FE_COMMAND,
+	HRT_FE_ADDRESS,
+	HRT_FE_DUMMY_CYCLES,
+	HRT_FE_DATA,
+	HRT_FE_MAX
+} hrt_frame_element_t;
 
-/* Macro for getting input mask for specified pin. */
-#define PIN_DIR_IN_MASK(PIN_NUM) PIN_DIR_MASK(PIN_NUM, INPUT)
+typedef enum {
+	HRT_FUN_OUT_BYTE,
+	HRT_FUN_OUT_WORD,
+} hrt_fun_out_t;
 
-/* Macro for getting state mask for specified pin and state. */
-#define PIN_OUT_MASK(PIN_NUM, STATE)                                                               \
-	(VPRCSR_NORDIC_OUT_PIN##PIN_NUM##_##STATE << VPRCSR_NORDIC_OUT_PIN##PIN_NUM##_Pos)
+/** @brief Structure for holding bus width of different xfer parts */
+typedef struct {
+	uint8_t command;
+	uint8_t address;
+	uint8_t dummy_cycles;
+	uint8_t data;
+} hrt_xfer_bus_widths_t;
 
-/* Macro for getting high state mask for specified pin. */
-#define PIN_OUT_HIGH_MASK(PIN_NUM) PIN_OUT_MASK(PIN_NUM, HIGH)
+typedef struct {
+	/** @brief Buffer for RX/TX data */
+	volatile uint8_t *data;
 
-/* Macro for getting low state mask for specified pin. */
-#define PIN_OUT_LOW_MASK(PIN_NUM) PIN_OUT_MASK(PIN_NUM, LOW)
-
-/** @brief Low level transfer parameters. */
-struct hrt_ll_xfer {
-	/** @brief Top value of VTIM. This will determine clock frequency
-	 *                         (SPI_CLOCK ~= CPU_CLOCK / (2 * TOP)).
+	/** @brief Data length in 4 byte words,
+	 *         calculated as CEIL(buffer_length_bits/32).
 	 */
-	volatile uint8_t counter_top;
+	uint32_t word_count;
 
-	/** @brief Word size of passed data, bits. */
-	volatile uint8_t word_size;
+	/** @brief Amount of clock pulses for last word.
+	 *         Due to hardware limitation, in case when last word clock pulse count is 1,
+	 *         the penultimate word has to share its bits with last word,
+	 *         for example:
+	 *         buffer length = 36bits,
+	 *         bus_width = QUAD,
+	 *         last_word_clocks would be:(buffer_length%32)/QUAD = 1
+	 *         so:
+	 *                 penultimate_word_clocks = 32-BITS_IN_BYTE
+	 *                 last_word_clocks = (buffer_length%32)/QUAD + BITS_IN_BYTE
+	 *                 last_word = penultimate_word>>24 | last_word<<8
+	 */
+	uint8_t last_word_clocks;
 
-	/** @brief Data to send, under each index there is data of length word_size. */
-	volatile uint32_t *data_to_send;
+	/** @brief  Amount of clock pulses for penultimate word.
+	 *          For more info see last_word_clocks.
+	 */
+	uint8_t penultimate_word_clocks;
 
-	/** @brief Data length. */
-	volatile uint8_t data_len;
+	/** @brief Value of last word.
+	 *         For more info see last_word_clocks.
+	 */
+	uint32_t last_word;
+
+	/** @brief Function for writing to buffered out register. */
+	hrt_fun_out_t fun_out;
+} hrt_xfer_data_t;
+
+/** @brief Hrt transfer parameters. */
+typedef struct {
+
+	/** @brief Data for all transfer parts */
+	hrt_xfer_data_t xfer_data[HRT_FE_MAX];
+
+	/** @brief Bus widths for different transfer parts (command, address, dummy_cycles, and
+	 * data).
+	 */
+	hrt_xfer_bus_widths_t bus_widths;
+
+	/** @brief Timer value, used for setting clock frequency
+	 */
+	uint16_t counter_value;
+
+	/** @brief Index of CE VIO pin */
+	uint8_t ce_vio;
 
 	/** @brief If true chip enable pin will be left active after transfer */
-	volatile uint8_t ce_hold;
+	bool ce_hold;
 
 	/** @brief Chip enable pin polarity in enabled state. */
-	volatile bool ce_enable_state;
-};
+	enum mspi_ce_polarity ce_polarity;
 
-/** @brief Write on single line.
- *
- *  Function to be used to write data on single data line (SPI).
- *
- *  @param[in] xfer_ll_params Low level transfer parameters.
- */
-void write_single_by_word(volatile struct hrt_ll_xfer xfer_ll_params);
+	/** @brief Tx mode mask for csr dir register  */
+	uint16_t tx_direction_mask;
 
-/** @brief Write on four lines.
+	/** @brief Rx mode mask for csr dir register  */
+	uint16_t rx_direction_mask;
+
+	/** @brief Due to hardware issues hrt module needs to know about selected spi mode */
+	enum mspi_cpp_mode cpp_mode;
+
+} hrt_xfer_t;
+
+/** @brief Write.
  *
- *  Function to be used to write data on quad data line (SPI).
+ *  Function to be used to write data on MSPI.
  *
- *  @param[in] xfer_ll_params Low level transfer parameters.
+ *  @param[in] hrt_xfer_params Hrt transfer parameters and data.
  */
-void write_quad_by_word(volatile struct hrt_ll_xfer xfer_ll_params);
+void hrt_write(volatile hrt_xfer_t *hrt_xfer_params);
+
+/** @brief Read.
+ *
+ *  Function to be used to read data from MSPI.
+ *
+ *  @param[in] hrt_xfer_params Hrt transfer parameters and data.
+ */
+void hrt_read(volatile hrt_xfer_t *hrt_xfer_params);
 
 #endif /* _HRT_H__ */

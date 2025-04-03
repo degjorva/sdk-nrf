@@ -16,9 +16,14 @@ menuconfig MCUBOOT_HARDWARE_DOWNGRADE_PREVENTION
 	bool "Downgrade prevention using hardware security counters"
 	depends on (SOC_NRF5340_CPUAPP || SOC_SERIES_NRF91X)
 	depends on !SECURE_BOOT_APPCORE
+	depends on !QSPI_XIP_SPLIT_IMAGE
 	help
 	  This option can be enabled by the application and will ensure that the
 	  MCUBOOT_HW_DOWNGRADE_PREVENTION Kconfig option is enabled in the MCUboot image.
+
+	  Note that this can only be used on first image, it will not be applied to the second
+	  image (network core updates) on nRF5340 which will use software downgrade protection
+	  on the network core CPU instead.
 
 if MCUBOOT_HARDWARE_DOWNGRADE_PREVENTION
 
@@ -47,8 +52,6 @@ endif # MCUBOOT_HARDWARE_DOWNGRADE_PREVENTION
 config MCUBOOT_COMPRESSED_IMAGE_SUPPORT
 	bool "Compressed image support"
 	depends on MCUBOOT_MODE_OVERWRITE_ONLY
-	depends on MCUBOOT_UPDATEABLE_IMAGES = "1"
-	depends on !BOOT_ENCRYPTION
 	help
 	  When enabled, supports loading compressed images using LZMA2 to the secondary slot which
 	  will then be decompressed and loaded to the primary slot.
@@ -140,6 +143,7 @@ choice BOOT_SIGNATURE_TYPE
 	default BOOT_SIGNATURE_TYPE_RSA if THINGY91_STATIC_PARTITIONS_FACTORY
 	default BOOT_SIGNATURE_TYPE_ECDSA_P256 if ((SOC_NRF52840 || SOC_SERIES_NRF91X) && !BOARD_THINGY91_NRF9160 && !BOARD_THINGY91_NRF52840)
 	default BOOT_SIGNATURE_TYPE_ECDSA_P256 if SECURE_BOOT_APPCORE
+	default BOOT_SIGNATURE_TYPE_ED25519 if SOC_SERIES_NRF54LX
 
 endchoice
 

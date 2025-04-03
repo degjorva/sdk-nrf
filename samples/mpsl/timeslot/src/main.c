@@ -29,16 +29,12 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 #if defined(CONFIG_SOC_SERIES_NRF53X)
 	#define LOG_OFFLOAD_IRQn SWI1_IRQn
-	#define MPSL_TIMER0 NRF_TIMER0
 #elif defined(CONFIG_SOC_SERIES_NRF52X)
 	#define LOG_OFFLOAD_IRQn SWI1_EGU1_IRQn
-	#define MPSL_TIMER0 NRF_TIMER0
 #elif defined(CONFIG_SOC_SERIES_NRF54LX)
 	#define LOG_OFFLOAD_IRQn EGU10_IRQn
-	#define MPSL_TIMER0 NRF_TIMER10
 #elif defined(CONFIG_SOC_SERIES_NRF54HX)
 	#define LOG_OFFLOAD_IRQn EGU020_IRQn
-	#define MPSL_TIMER0 NRF_TIMER020
 #endif /* CONFIG_SOC_SERIES_NRF53X */
 
 static bool request_in_cb = true;
@@ -50,17 +46,23 @@ enum mpsl_timeslot_call {
 	CLOSE_SESSION,
 };
 
+#if defined(CONFIG_SOC_SERIES_NRF54HX)
+	#define HFCLK_CFG MPSL_TIMESLOT_HFCLK_CFG_XTAL_GUARANTEED
+#else
+	#define HFCLK_CFG MPSL_TIMESLOT_HFCLK_CFG_NO_GUARANTEE
+#endif /* CONFIG_SOC_SERIES_NRF54HX */
+
 /* Timeslot requests */
 static mpsl_timeslot_request_t timeslot_request_earliest = {
 	.request_type = MPSL_TIMESLOT_REQ_TYPE_EARLIEST,
-	.params.earliest.hfclk = MPSL_TIMESLOT_HFCLK_CFG_NO_GUARANTEE,
+	.params.earliest.hfclk = HFCLK_CFG,
 	.params.earliest.priority = MPSL_TIMESLOT_PRIORITY_NORMAL,
 	.params.earliest.length_us = TIMESLOT_LENGTH_US,
 	.params.earliest.timeout_us = 1000000
 };
 static mpsl_timeslot_request_t timeslot_request_normal = {
 	.request_type = MPSL_TIMESLOT_REQ_TYPE_NORMAL,
-	.params.normal.hfclk = MPSL_TIMESLOT_HFCLK_CFG_NO_GUARANTEE,
+	.params.normal.hfclk = HFCLK_CFG,
 	.params.normal.priority = MPSL_TIMESLOT_PRIORITY_NORMAL,
 	.params.normal.distance_us = TIMESLOT_REQUEST_DISTANCE_US,
 	.params.normal.length_us = TIMESLOT_LENGTH_US

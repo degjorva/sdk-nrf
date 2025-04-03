@@ -12,8 +12,8 @@ config PARTITION_MANAGER_ENABLED
 	  Option which can be checked to see whether or not the
 	  partition manager is enabled in the current build. Note that this
 	  should ideally be a hidden option, but it can't due to limitations
-	  in how parent images impose options on child images. Don't
-	  change the value of this option.
+	  in how sysbuild imposes options on images. Do not change the value
+	  of this option.
 
 # Override this option to use custom flash map implementation when partition
 # manager is enabled.
@@ -101,24 +101,6 @@ rsource "Kconfig.template.partition_config"
 rsource "Kconfig.template.partition_region"
 endif
 
-if ZIGBEE && !SOC_NRF52833
-partition=ZBOSS_NVRAM
-partition-size=0x8000
-rsource "Kconfig.template.partition_config"
-endif
-
-if ZIGBEE && SOC_NRF52833
-partition=ZBOSS_NVRAM
-partition-size=0x4000
-rsource "Kconfig.template.partition_config"
-endif
-
-if ZIGBEE
-partition=ZBOSS_PRODUCT_CONFIG
-partition-size=0x1000
-rsource "Kconfig.template.partition_config"
-endif
-
 if EMDS
 partition=EMDS_STORAGE
 partition-size=0x1000
@@ -146,33 +128,31 @@ rsource "Kconfig.template.partition_config"
 rsource "Kconfig.template.partition_region"
 endif
 
-if SOC_NRF54L15_CPUFLPR
 config PM_PARTITION_SIZE_VPR_LAUNCHER
 	hex
-	default $(dt_node_reg_addr_hex,/soc/rram-controller@5004b000/rram@165000)
+	depends on SOC_NRF54L15_CPUFLPR || SOC_NRF54L09_ENGA_CPUFLPR || SOC_NRF54L20_ENGA_CPUFLPR || SOC_NRF7120_ENGA_CPUFLPR
+	default $(dt_node_reg_addr_hex,/soc/rram-controller@5004b000/rram@165000) if SOC_NRF54L15_CPUFLPR
+	default $(dt_node_reg_addr_hex,/soc/rram-controller@5004e000/rram@1ed000) if SOC_NRF54L20_ENGA_CPUFLPR
+	default $(dt_node_reg_addr_hex,/soc/rram-controller@5004e000/rram@ee000) if SOC_NRF54L09_ENGA_CPUFLPR
+	default $(dt_node_reg_addr_hex,/soc/mram@3e1000) if SOC_NRF7120_ENGA_CPUFLPR
 	help
 	  Memory set aside for the vpr_launcher partition.
-	  Must match the size of the cpuapp_rram partition which is deleted.
+	  Must match the size of the cpuapp_rram/cpuapp_mram partition which is deleted.
 	  This to place the flpr app's code at the address found in the devicetree.
+
+if WIFI_NRF70 && NRF_WIFI_PATCHES_EXT_FLASH_STORE
+
+partition=NRF70_WIFI_FW
+partition-size=0x20000
+rsource "Kconfig.template.partition_config"
+rsource "Kconfig.template.partition_region"
+
 endif
 
 endmenu # Zephyr subsystem configurations
 menu "NCS subsystem configurations"
 
 endmenu # NCS subsystem configurations
-
-config PM_SINGLE_IMAGE
-	bool "Use the Partition Manager for single image builds" if !BUILD_WITH_TFM
-	default y if BUILD_WITH_TFM
-	select PARTITION_MANAGER_ENABLED
-	help
-	  Use the Partition Manager feature to partition the device even if
-	  only a single image is included in the build. This is typically set
-	  when a subsystem that defines its own Partition Manager configuration
-	  is included in the build.
-
-	  The option is always defined in builds where a TF-M image for the
-	  Secure Execution environment is generated.
 
 DT_CHOSEN_EXT_FLASH:= nordic,pm-ext-flash
 DT_CHOSEN_EXT_FLASH_PATH := $(dt_chosen_path,$(DT_CHOSEN_EXT_FLASH))
@@ -214,26 +194,17 @@ config PM_EXTERNAL_FLASH_SIZE_BITS
 config PM_EXTERNAL_FLASH_MCUBOOT_SECONDARY
 	bool "Place MCUboot secondary in external flash"
 	depends on BOOTLOADER_MCUBOOT || MCUBOOT
-	# Only depend on the chosen for the parent image. The value of this
-	# option is propagated to the MCUboot child image automatically.
 	depends on PM_EXTERNAL_FLASH_ENABLED || MCUBOOT
 	default y if BOOTLOADER_MCUBOOT
-	imply ADD_MCUBOOT_MEDIATE_SIM_FLASH_DTS
 	help
 	  Place the secondary partition of MCUboot in the external flash instead
 	  of the internal flash. This option should only be enabled by the user
 	  in the parent image.
 
-config PM_IMAGE_NOT_BUILT_FROM_SOURCE
-	bool
-	help
-	  Promptless helper config used to indicate that one or more
-	  image is not built from source.
-
 config PM_OVERRIDE_EXTERNAL_DRIVER_CHECK
 	bool "Override external driver check"
 	help
-	  When enabled, will include all external flash stroage areas without
+	  When enabled, will include all external flash storage areas without
 	  being gated on the NORDIC_QSPI_NOR Kconfig, can be enabled to use
 	  non-QSPI external flash chips from partition manager.
 
@@ -241,13 +212,16 @@ config PM_OVERRIDE_EXTERNAL_DRIVER_CHECK
 config PM_SRAM_BASE
 	hex
 	default $(dt_node_reg_addr_hex,/soc/memory@21000000) if SOC_NRF5340_CPUNET
-	default 0x20000000 if SOC_NRF54L15_CPUFLPR  # Because the cpuapp_sram DT node is deleted in nrf54l15_cpuflpr.dtsi
+	default 0x20000000 if SOC_NRF54L15_CPUFLPR || SOC_NRF54L09_ENGA_CPUFLPR || SOC_NRF54L20_ENGA_CPUFLPR || SOC_NRF7120_ENGA_CPUFLPR
 	default $(dt_node_reg_addr_hex,/soc/memory@20000000)
 
 config PM_SRAM_SIZE
 	hex
 	default $(dt_node_reg_size_hex,/soc/memory@21000000) if SOC_NRF5340_CPUNET
+	default 0x2fc00 if SOC_NRF54L09_ENGA_CPUFLPR  # Because the cpuapp_rram DT node is deleted in nrf54l09_enga_cpuflpr.dtsi
 	default 0x40000 if SOC_NRF54L15_CPUFLPR  # Because the cpuapp_rram DT node is deleted in nrf54l15_cpuflpr.dtsi
+	default 0x7fc00 if SOC_NRF54L20_ENGA_CPUFLPR  # Because the cpuapp_rram DT node is deleted in nrf54l20_enga_cpuflpr.dtsi
+	default 0x40000 if SOC_NRF7120_ENGA_CPUFLPR  # Because the cpuapp_mram DT node is deleted in nrf7120_enga_cpuflpr.dtsi
 	default $(dt_node_reg_size_hex,/soc/memory@20000000)
 
 config PM_USE_CONFIG_SRAM_SIZE

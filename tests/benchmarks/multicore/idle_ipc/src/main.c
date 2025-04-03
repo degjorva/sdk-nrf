@@ -11,6 +11,7 @@
 #include <string.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/ipc/ipc_service.h>
+#include <zephyr/drivers/gpio.h>
 
 #ifdef CONFIG_TEST_EXTRA_STACK_SIZE
 #define STACKSIZE (1024 + CONFIG_TEST_EXTRA_STACK_SIZE)
@@ -26,6 +27,7 @@ K_THREAD_STACK_DEFINE(ipc0_stack, STACKSIZE);
 LOG_MODULE_REGISTER(host, LOG_LEVEL_INF);
 
 static const struct device *const console_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_console));
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led), gpios);
 
 struct payload {
 	unsigned long cnt;
@@ -72,6 +74,13 @@ int main(void)
 	int ret;
 	unsigned long last_cnt = 0;
 	unsigned long delta = 0;
+	int test_repetitions = 3;
+
+	ret = gpio_is_ready_dt(&led);
+	__ASSERT(ret, "Error: GPIO Device not ready");
+
+	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+	__ASSERT(ret == 0, "Could not configure led GPIO");
 
 	p_payload = (struct payload *)k_malloc(CONFIG_APP_IPC_SERVICE_MESSAGE_LEN);
 	if (!p_payload) {
@@ -112,8 +121,13 @@ int main(void)
 	}
 	k_msleep(CONFIG_TEST_START_DELAY_MS);
 
-	while (true) {
-
+#if defined(CONFIG_COVERAGE)
+	printk("Coverage analysis enabled\n");
+	while (test_repetitions--)
+#else
+	while (test_repetitions)
+#endif
+	{
 		printk("Hello\n");
 		printk("Send data over IPC\n");
 
@@ -137,8 +151,13 @@ int main(void)
 		}
 
 		printk("Go to sleep (s2ram)\n");
+		gpio_pin_set_dt(&led, 0);
 		k_msleep(CONFIG_SLEEP_TIME_MS);
+		gpio_pin_set_dt(&led, 1);
 	}
 
+#if defined(CONFIG_COVERAGE)
+	printk("Coverage analysis start\n");
+#endif
 	return 0;
 }

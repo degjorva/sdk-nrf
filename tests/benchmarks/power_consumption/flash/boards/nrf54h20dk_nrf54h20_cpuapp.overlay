@@ -2,8 +2,16 @@
 	status = "okay";
 };
 
+&exmif {
+	zephyr,pm-device-runtime-auto;
+};
+
 / {
 	aliases {
+		led = &led0;
+		/delete-property/ led1;
 		jedec-spi-nor = &mx25uw63;
 	};
 };
+
+/delete-node/ &led1;

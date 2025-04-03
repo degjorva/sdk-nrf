@@ -2,12 +2,11 @@
 
 .. ### Versions
 
-.. |release| replace:: v2.9.0-nRF54H20-rc1
-.. |release_tt| replace:: ``v2.9.0-nRF54H20-rc1``
-.. |release_number_tt| replace:: ``2.9.0-nRF54H20-rc1``
+.. |release| replace:: v2.9.0-nRF54H20-1
+.. |release_tt| replace:: ``v2.9.0-nRF54H20-1``
+.. |release_number_tt| replace:: ``2.9.0-nRF54H20-1``
 
-.. |jlink_ver| replace:: v7.94i
-.. |jlink_ver_vsc| replace:: v7.94i
+.. |jlink_ver| replace:: v8.18
 
 .. ### Config shortcuts
 
@@ -86,15 +85,13 @@
 .. |file_suffix_related_deprecation_note| replace:: This feature is deprecated and is being replaced by :ref:`suffix-based configurations <app_build_file_suffixes>`.
     You can continue to use it until the transition is complete in the |NCS| and the feature is removed in one of the upcoming |NCS| releases.
 
-.. |sysbuild_related_deprecation_note| replace:: This feature is deprecated and is being replaced by Zephyr's :ref:`zephyr:sysbuild`.
-   You can continue to use it until the transition is complete in the |NCS| and the feature is removed in one of the upcoming |NCS| releases.
-   For more information, see :ref:`zephyr:sysbuild`, :ref:`sysbuild_images`, :ref:`zephyr_samples_sysbuild`, and :ref:`sysbuild_forced_options`.
-
 .. |nrfjprog_deprecation_note| replace:: Starting with the |NCS| v2.8.0, nrfjprog is in the process of being archived.
    It will remain available for download, but `nRF Util (device command) <Device command overview_>`_ will gradually replace it.
 
-.. |nrf_CLT_deprecation_note| replace:: Starting with the |NCS| v2.8.0, the nRF Command Line Tools are in the process of being archived.
-   They will remain available for download, but `nRF Util`_ will gradually replace them.
+.. |nrf_CLT_deprecation_note| replace:: The `nRF Command Line Tools`_ have been archived and replaced by `nRF Util`_.
+   No further updates will be made to the nRF Command Line Tools.
+   Last supported operating systems are Windows 10, Linux Ubuntu 22.04, and macOS 13.
+   The nRF Command Line Tools will remain available for download, but do not install the SEGGER J-Link version they provide if you have a newer version installed.
 
 .. ### Thread usage shortcuts
 
@@ -102,23 +99,6 @@
    See :ref:`ug_thread` for more information.
 .. |thread_hwfc_enabled| replace:: This sample has Hardware Flow Control mechanism enabled by default in serial communication.
    When enabled, it allows devices to manage transmission by informing each other about their current state, and ensures more reliable connection in high-speed communication scenarios.
-
-.. ### Zigbee & ZBOSS shortcuts
-
-.. |zigbee_version| replace:: Zigbee 3.0
-.. |zboss_version| replace:: 3.11.5.0
-.. |zigbee_ncp_package_version| replace:: 2.2.4
-.. |zigbee_description| replace:: Zigbee is a portable, low-power software networking protocol that provides connectivity over an 802.15.4-based mesh network.
-.. |enable_zigbee_before_testing| replace:: Make sure to configure the Zigbee stack before building and testing this sample.
-   See :ref:`ug_zigbee_configuring` for more information.
-.. |zigbee_library| replace:: This is a Zigbee library.
-   See :ref:`ug_zigbee_configuring_libraries` for information about how to configure it for you Zigbee application.
-.. |zigbee_ncp_package| replace:: It contains the full development-ready source code for host and evaluation-ready firmware for the nRF52840 DK, the nRF52833 DK, and the nRF52840 Dongle.
-   The package comes with prebuilt libraries compatible with 64-bit Ubuntu 18.04 Linux.
-.. |zigbee_ncp_package_more_info| replace:: For information about how to recompile the package libraries for a different host architecture or operating system, see the `NCP Host documentation`_.
-   For information about how to use NCP Host for Zigbee in the |NCS| or build the firmware using the NCP sample, see the :ref:`NCP sample <zigbee_ncp_sample>`.
-.. |zigbee_shell_config| replace:: You can add support for Zigbee shell commands to any of the available :ref:`Zigbee samples <zigbee_samples>`, except for the :ref:`NCP sample <zigbee_ncp_sample>`.
-   Some of the commands use an endpoint for sending packets, so no endpoint handler is allowed to be registered for this endpoint.
 
 .. ### nRF Desktop shortcuts
 
@@ -246,20 +226,22 @@
 
 .. |parameters_override_west_config| replace:: The parameters and options passed in the command line always take precedence over ``west config`` settings.
 
-.. |multi_image| replace:: These samples are built for the application core and, by default, include the network core application as child image in a multi-image build (see :ref:`ug_nrf5340_multi_image`).
-
 .. |migration_contact_devzone| replace:: While we strive to document all breaking changes, the migration guides might not include the detailed migration steps for your use case.
    If you need assistance, contact Nordic Semiconductor's technical support on `DevZone`_.
 
 .. |nrf54_buttons_leds_numbering| replace:: The nRF54 DKs use a different numbering pattern for LED and buttons.
    See the User interface section for full overview.
 
-.. |ATv2_maintenance_note| replace:: The Asset Tracker v2 application is in maintenance mode.
-   For new projects, it is recommended to use the :ref:`nrf_cloud_multi_service` sample instead.
-
 .. |toolchain_management_ncs_versions| replace:: The Toolchain Manager installation is recommended only when using the nRF54H20 DK with the |NCS| v2.7.0.
    When using any other DK, the Toolchain Manager installation is recommended for the |NCS| v1.9.x and earlier versions.
+
+.. |ATv2_maintenance_note| replace:: The Asset Tracker v2 application is in maintenance mode.
+   For new projects, it is recommended to use the :ref:`nrf_cloud_multi_service` sample instead.
 
 .. |filter_samples_by_board| replace:: If you want to list samples available for one or more specific boards, `use the nRF Connect for Visual Studio Code extension to filter them <Browse samples_>`_.
 
 .. |54H_engb_2_8| replace:: The nRF54H20 DK Engineering A and B (up to version 0.8.2) are no longer supported starting with |NCS| v2.9.0.
+
+.. |devicetree_bindings| replace:: The devicetree bindings provide the structure for the content of the devicetree nodes.
+   The :ref:`compatible <zephyr:dt-bindings-compatible>` property defines the compatibility of a devicetree node with a devicetree binding.
+   For more information, read the :ref:`documentation about devicetree bindings in Zephyr <zephyr:dt-binding-compat>`.

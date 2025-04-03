@@ -161,6 +161,27 @@ The Fast Pair standard implementation in the |NCS| actively supports the followi
 * Input device (see the :ref:`fast_pair_input_device` sample)
 * Locator tag (see the :ref:`fast_pair_locator_tag` sample)
 
+.. _ug_bt_fast_pair_provisioning_register_firmware_update_intent:
+
+Firmware update intent
+----------------------
+
+Intents are an established mechanism for app-to-app communication on the Android platform.
+In this particular case, the firmware update intent is used by Fast Pair to notify the companion app about the need to update the Provider's firmware.
+A companion app is an Android application that is typically developed for a device model.
+It often unlocks additional interactions with a device, which are not supported at the Android system level.
+Companion apps are typically used to configure device parameters or update their firmware.
+For further details on the Android intent feature for firmware updates, see the `Fast Pair firmware update intent`_ section in the Fast Pair specification.
+
+To configure your device model in the Google Nearby Devices console for support of the firmware update intent feature, complete the following steps:
+
+1. Select the appropriate option in the **Firmware Type** list.
+   The default **Unspecified** selection disables the intent feature for firmware updates.
+#. Enter the firmware version string in the **Firmware Version** field.
+#. Enter the companion app package name in the **Companion App Package Name** field.
+
+See :ref:`ug_bt_fast_pair_gatt_service_firmware_update_intent` to learn how to prepare your Provider firmware to support the firmware update intent feature.
+
 FMDN extension
 --------------
 
@@ -174,43 +195,75 @@ For an example that uses the **Find My Device** feature, see the :ref:`fast_pair
    To register your development email account, complete Google's device proposal form.
    You can find the link to the device proposal form in the `Fast Pair Find My Device Network extension`_ specification.
 
+.. _ug_bt_fast_pair_provisioning_register_hex_generation:
+
 Provisioning registration data onto device
 ==========================================
 
 The Fast Pair standard requires provisioning the device with Model ID and Anti-Spoofing Private Key obtained during device model registration.
 In the |NCS|, the provisioning data is generated as a hexadecimal file using the :ref:`bt_fast_pair_provision_script`.
 
-When building Fast Pair in the |NCS|, the build system automatically calls the Fast Pair provision script.
+When building Fast Pair in the |NCS|, you can configure the build system to automatically handle the Fast Pair provisioning process during the build.
+If this feature is enabled, the build system calls the Fast Pair provision script.
 It then includes the resulting hexadecimal file in the final firmware that you can flash onto the device.
-The Fast Pair provisioning data is stored on the dedicated Fast Pair partition, which has to be defined.
 
-Partition definition using the Partition Manager (PM)
------------------------------------------------------
+For further details on how to configure the automatic Fast Pair provisioning in your project configuration, see the following subsections.
 
-For devices that support :ref:`partition_manager` and have the :kconfig:option:`CONFIG_PM_SINGLE_IMAGE` Kconfig option automatically enabled by the Fast Pair build system, the system also automatically creates the ``bt_fast_pair`` partition.
+Partition definition
+--------------------
+
+The Fast Pair provisioning data is stored on the dedicated Fast Pair partition.
+To properly define this partition, you must rely on the partitioning tool that is supported by your target device.
+The specific description for each partitioning tool is provided in the following subsections.
+
+Partition Manager (PM)
+~~~~~~~~~~~~~~~~~~~~~~
+
+For devices that support :ref:`partition_manager`, the system also automatically creates the ``bt_fast_pair`` partition.
 The partition is defined in the :file:`subsys/partition_manager/pm.yml.bt_fast_pair` file.
 The :ref:`fast_pair_input_device` sample follows this approach.
+
+.. note::
+   The dynamic generation of the ``bt_fast_pair`` partition definition is only supported if you enable the :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option in your application image.
+
 Alternatively, the Fast Pair partition can be defined manually in the application's configuration file.
 To see how to do this, refer to the example in the :file:`samples/bluetooth/fast_pair/locator_tag/configuration/pm_static_nrf52840dk_nrf52840.yml` file which is a part of the :ref:`fast_pair_locator_tag` sample.
 For more information about defining Partition Manager partitions, see the :ref:`Configuration <pm_configuration>` section of the :ref:`partition_manager` page.
 
-Partition definition using the Devicetree (DTS)
------------------------------------------------
+.. note::
+   The Fast Pair partition can be provisioned by the build system only if it is defined in the main (default) application domain.
+   For example, defining partition in the CPUNET domain for nRF53 targets is not supported.
+
+Devicetree (DTS)
+~~~~~~~~~~~~~~~~
 
 For devices that do not support :ref:`partition_manager`, you must declare the ``bt_fast_pair_partition`` partition manually in the devicetree.
 Currently, the :ref:`zephyr:nrf54h20dk_nrf54h20` is the only device that requires manual partition definition.
 To see how to do this, refer to the example in the :file:`samples/bluetooth/fast_pair/input_device/boards/nrf54h20dk_nrf54h20_cpuapp.overlay` file.
 
-To build an application with the Fast Pair support, include the following additional CMake options:
+.. note::
+   The Fast Pair partition can be provisioned by the build system only if it is defined in the DTS configuration of main (default) application image.
 
-* ``FP_MODEL_ID`` - Fast Pair Model ID in format ``0xXXXXXX``,
-* ``FP_ANTI_SPOOFING_KEY`` - base64-encoded Fast Pair Anti-Spoofing Private Key.
+Sysbuild Kconfig configuration and provisioning data generation
+---------------------------------------------------------------
 
-The Fast Pair partition address is provided automatically by the build system.
+To generate a hexadecimal file with the Fast Pair provisioning data during the build, you must use the default |NCS| build system configuration with sysbuild and set the following sysbuild Kconfig options:
 
-For example, when building an application with the |nRFVSC|, you need to add the following parameters in the **Extra CMake arguments** field on the **Add Build Configuration view**: ``-DFP_MODEL_ID=0xFFFFFF -DFP_ANTI_SPOOFING_KEY=AbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbA=``.
-Make sure to replace ``0xFFFFFF`` and ``AbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbA=`` with values obtained for your device.
-See :ref:`cmake_options` for more information about defining CMake options.
+* ``SB_CONFIG_BT_FAST_PAIR_MODEL_ID`` - Fast Pair Model ID in format ``0xXXXXXX``.
+* ``SB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY`` - Base64-encoded Fast Pair Anti-Spoofing Private Key.
+
+See :ref:`zephyr:sysbuild` for detailed information on how to configure the sysbuild Kconfig options.
+
+.. note::
+   The Anti-Spoofing Private Key is confidential and must be handled securely.
+   It is recommended to store this key securely outside the code repository and either pass it to the project as an additional build parameter (with the ``-DSB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY`` parameter) or use a separate setup to provision devices.
+
+If the provisioning data generation is triggered successfully, the ``SB_CONFIG_BT_FAST_PAIR_PROV_DATA`` Kconfig option is set in the project sysbuild configuration.
+
+The build system automatically places the Fast Pair provisioning data onto the partition defined by the supported partitioning tool (for example, the Partition Manager or DTS).
+
+The provisioning hex file is automatically merged with the final hexadecimal output from the build command (:file:`merged.hex`) and is uploaded on your target device with the ``west flash`` command.
+
 See the following sections for information on how to add the Google Fast Pair subsystem to your project.
 
 .. rst-class:: numbered-step
@@ -232,12 +285,11 @@ The subsequent subsections describe required steps for enabling Fast Pair extens
 Enabling Fast Pair in Kconfig
 =============================
 
-If you are using the default |NCS| build system configuration with sysbuild and wish to add the Google Fast Pair subsystem to your project, enable the ``SB_CONFIG_BT_FAST_PAIR`` Kconfig option.
-If you do not use sysbuild, you must enable :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option at the main application image level.
+To support Google Fast Pair in your project, you must enable the :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option at the main application image level.
 
 .. note::
-   Sysbuild sets the :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option in the main application image based on the value of the ``SB_CONFIG_BT_FAST_PAIR`` Kconfig option.
-   Your configuration of the :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option at the main application image will be ineffective, as sysbuild overrides it.
+   The Fast Pair Kconfig configuration at the sysbuild level is only used to generate the Fast Pair provisioning data hex file during the build.
+   See the :ref:`ug_bt_fast_pair_provisioning_register_hex_generation` section for more details regarding sysbuild configuration for Fast Pair.
 
 .. _ug_bt_fast_pair_prerequisite_ops_api:
 
@@ -493,7 +545,8 @@ When creating the Fast Pair advertising set with the :c:func:`bt_le_ext_adv_crea
    * For the unprovisioned device, control the Fast Pair advertising rotation time using the :c:func:`bt_le_set_rpa_timeout` and :c:func:`bt_le_oob_get_local` functions.
      You must still comply with the requirements of the Fast Pair protocol.
 
-   The provisioning state is indicated by the :c:member:`bt_fast_pair_fmdn_info_cb.provisioning_state_changed` callback.
+   The :c:func:`bt_fast_pair_fmdn_is_provisioned` function can be used to check the current FMDN provisioning state synchronously.
+   Also, the provisioning state changes are indicated by the :c:member:`bt_fast_pair_fmdn_info_cb.provisioning_state_changed` callback.
    See :ref:`ug_bt_fast_pair_gatt_service_fmdn_info_callbacks` for more details.
 
 See the :ref:`fast_pair_locator_tag` sample that demonstrates how to comply with the rules described in this section.
@@ -580,6 +633,7 @@ For example, the "It's here" status message is displayed in the "Hot & Cold" exp
 
 You can set the TX power for the FMDN advertising and connections using the :kconfig:option:`CONFIG_BT_FAST_PAIR_FMDN_TX_POWER` Kconfig option.
 The configured value is directly used to set the TX power in the Bluetooth LE controller using an HCI command.
+This Kconfig option must be set to 0 at minimum as the Fast Pair specification requires that the conducted Bluetooth transmit power for FMDN advertisements must not be lower than 0 dBm.
 By default, 0 dBm is used for the FMDN TX power configuration.
 
 You can use the :kconfig:option:`CONFIG_BT_FAST_PAIR_FMDN_TX_POWER_CORRECTION_VAL` Kconfig option to define a correction value that is added to TX power readout from the Bluetooth LE controller (usually equal to the :kconfig:option:`CONFIG_BT_FAST_PAIR_FMDN_TX_POWER` Kconfig option), when calculating the calibrated TX power reported in the Read Beacon Parameters response.
@@ -672,6 +726,23 @@ Make sure that it is enabled for the following use cases of the Google Fast Pair
 
 See :ref:`ug_bt_fast_pair_use_case` for more details about the use cases of the Google Fast Pair application.
 
+.. _ug_bt_fast_pair_gatt_service_firmware_update_intent:
+
+Firmware update intent
+======================
+
+See :ref:`ug_bt_fast_pair_provisioning_register_firmware_update_intent` for a basic introduction regarding the firmware update intent feature and for information on how to configure your device in the Google Nearby Device console to support this feature.
+
+To use the Android intent feature for firmware updates, your device must support the Device Information Service (DIS) and its Firmware Revision characteristic.
+You can disable all other DIS characteristics if they are not used for other purposes.
+
+To enable the Zephyr DIS module and the Firmware Revision characteristic, set the :kconfig:option:`CONFIG_BT_DIS` and :kconfig:option:`CONFIG_BT_DIS_FW_REV` Kconfig options.
+If you use Zephyr's :ref:`zephyr:app-version-details` feature and define the :file:`VERSION` file in your project, the :kconfig:option:`CONFIG_BT_DIS_FW_REV_STR` Kconfig option is automatically set.
+Otherwise, set the :kconfig:option:`CONFIG_BT_DIS_FW_REV_STR` Kconfig option explicitly.
+
+If your device model supports the FMDN extension, also follow the additional guidelines to authenticate the connection before the firmware version read operation.
+For further details, see the :ref:`ug_bt_fast_pair_gatt_service_fmdn_info_callbacks_conn_authenticated` section.
+
 FMDN extension
 ==============
 
@@ -691,16 +762,33 @@ This function supports the following callbacks:
 
 * :c:member:`bt_fast_pair_fmdn_info_cb.provisioning_state_changed` -  Notification about the provisioning state update
 * :c:member:`bt_fast_pair_fmdn_info_cb.clock_synced` - Notification about the beacon clock synchronization event
+* :c:member:`bt_fast_pair_fmdn_info_cb.conn_authenticated` - Notification about the connected peer authentication event
 
-The provisioning state is indicated by the :c:member:`bt_fast_pair_fmdn_info_cb.provisioning_state_changed` callback.
+.. _ug_bt_fast_pair_gatt_service_fmdn_info_callbacks_provisioning_state:
+
+Provisioning state
+~~~~~~~~~~~~~~~~~~
+
+The :c:func:`bt_fast_pair_fmdn_is_provisioned` function can be used to check the current FMDN provisioning state synchronously.
+You can only call this function in the ready state of the Fast Pair module (see the :c:func:`bt_fast_pair_is_ready` function).
+
+The provisioning state changes are indicated by the :c:member:`bt_fast_pair_fmdn_info_cb.provisioning_state_changed` callback.
 This callback is triggered in the following scenarios:
 
-* Right after the :c:func:`bt_fast_pair_enable` enable operation to indicate the initial provisioning state of the extension.
 * On the successful provisioning operation over Beacon Actions characteristic.
 * On the successful unprovisioning operation over Beacon Actions characteristic.
 
-The provisioning state callback is used to notify the application about switching to a proper advertising policy.
+The :c:func:`bt_fast_pair_fmdn_is_provisioned` function and the :c:member:`bt_fast_pair_fmdn_info_cb.provisioning_state_changed` callback are two complementary API elements that can be used to track the FMDN provisioning state in your application code.
+The recommended usage scenario is described in the next paragraph.
+
+Use the :c:func:`bt_fast_pair_fmdn_is_provisioned` function to initialize the provisioning state right after enabling the Fast Pair module with the :c:func:`bt_fast_pair_enable` function call.
+Then, handle the :c:member:`bt_fast_pair_fmdn_info_cb.provisioning_state_changed` callback to track the provisioning state changes until the Fast Pair module is disabled again with the :c:func:`bt_fast_pair_disable` function call.
+
+The accurate tracking of the FMDN provisioning state is mandatory for proper management of the Fast Pair and FMDN advertising policies.
 The advertising policies are extensively described in the :ref:`Setting up Bluetooth LE advertising <ug_bt_fast_pair_advertising>` section of this integration guide.
+
+Clock synchronization
+~~~~~~~~~~~~~~~~~~~~~
 
 The clock synchronization is indicated by the :c:member:`bt_fast_pair_fmdn_info_cb.clock_synced` callback.
 This callback is triggered on a successful beacon clock read operation over Beacon Actions characteristic.
@@ -712,6 +800,30 @@ As a fallback mechanism for clock synchronization, the accessory must simultaneo
 The Fast Pair advertising frames make the affected Provider visible to nearby Seekers.
 Once one of the Seeker devices connects to the accessory and synchronizes the clock, the :c:member:`bt_fast_pair_fmdn_info_cb.clock_synced` callback is called to indicate that the Provider is no longer required to advertise the Fast Pair payload.
 
+.. _ug_bt_fast_pair_gatt_service_fmdn_info_callbacks_conn_authenticated:
+
+Connection authentication
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The connected peer authentication is indicated by the :c:member:`bt_fast_pair_fmdn_info_cb.conn_authenticated` callback.
+This callback is triggered on a successful provisioning state read operation over the Beacon Actions characteristic.
+A successful operation proves that the connected peer has at least one of the Provider's Account Keys.
+
+A typical use case for this callback is to authenticate the connected peer and allow it to read the firmware version to support firmware update intents on the Android platform.
+See :ref:`ug_bt_fast_pair_provisioning_register_firmware_update_intent` for general information about the firmware update intent feature and the required configuration steps in the Google Nearby Device console.
+See :ref:`ug_bt_fast_pair_gatt_service_firmware_update_intent` to learn how to prepare your Provider firmware to support the firmware update intent feature.
+You must meet the requirements in the linked sections before following the guidelines related to the FMDN extension.
+
+The firmware version is read by the Fast Pair Seeker over the Firmware Revision characteristic in the Device Information Service (DIS).
+It is assumed that DIS characteristics contain the identifying information and access to these characteristics should be limited to prevent tracking.
+
+If the defined device model from the Google Nearby Devices console supports Bluetooth bonding during the Fast Pair procedure, you can replace the connection authentication mechanism based on the :c:member:`bt_fast_pair_fmdn_info_cb.conn_authenticated` callback with an alternative mechanism based on Bluetooth bonds.
+In this case, bonded devices are allowed to read the firmware version.
+
+For further details on firmware updates in the FMDN extension context, see the `Fast Pair FMDN firmware updates`_ section in the FMDN specification.
+
+For an example of how to use the firmware update intents with the FMDN extension, see the :ref:`fast_pair_locator_tag` sample.
+
 .. _ug_bt_fast_pair_gatt_service_fmdn_read_mode_callbacks:
 
 Using the read mode callbacks and managing the read mode state
@@ -721,7 +833,7 @@ The FMDN extension defines special read modes, in which sensitive data can be re
 The read mode persists only for limited time after which it is deactivated.
 
 To enter the chosen read mode, you must call the :c:func:`bt_fast_pair_fmdn_read_mode_enter` function and pass the supported read mode type as a function parameter.
-You can only call this function in the ready state of the Fast Pair module (see the :c:func:`bt_fast_pair_is_ready` function) and in the FMDN provisioned state (see the :c:member:`bt_fast_pair_fmdn_info_cb.provisioning_state_changed` callback).
+You can only call this function in the ready state of the Fast Pair module (see the :c:func:`bt_fast_pair_is_ready` function) and in the FMDN provisioned state (see the :c:func:`bt_fast_pair_fmdn_is_provisioned` function).
 The FMDN extension supports the following read mode types:
 
 * :c:enum:`BT_FAST_PAIR_FMDN_READ_MODE_FMDN_RECOVERY` - Ephemeral Identity Key (EIK) recovery mode

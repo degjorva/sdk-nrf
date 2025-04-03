@@ -24,7 +24,7 @@ Overview
 
 The test demonstrates how to build a multicore idle application with :ref:`configuration_system_overview_sysbuild`.
 
-When building with sysbuild, the build system adds child images based on the options selected in the project's additional configuration and build files.
+When building with sysbuild, the build system adds images based on the options selected in the project's additional configuration and build files.
 This test shows how to inform the build system about dedicated sources for additional images.
 The test comes with the following additional files:
 
@@ -41,7 +41,6 @@ Building and running
 
 .. include:: /includes/build_and_run_test.txt
 
-The remote board must be specified using ``SB_CONFIG_REMOTE_BOARD``.
 To build the test, use configuration setups from :file:`testcase.yaml` using the ``-T`` option.
 See the following examples:
 
@@ -58,6 +57,14 @@ nRF54H20 DK
   .. code-block:: console
 
      west build -p -b nrf54h20dk/nrf54h20/cpuapp -T benchmarks.multicore.idle.nrf54h20dk_cpuapp_cpurad .
+
+  To achieve the lowest power consumption, use the ``benchmarks.multicore.idle.nrf54h20dk_cpuapp_cpurad.s2ram`` configuration.
+  This configuration does not provide console output.
+  Use the following build command:
+
+  .. code-block:: console
+
+     west build -p -b nrf54h20dk/nrf54h20/cpuapp -T benchmarks.multicore.idle.nrf54h20dk_cpuapp_cpurad.s2ram .
 
   You can build the test for application and PPR cores as follows:
 

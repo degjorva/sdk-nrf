@@ -8,7 +8,6 @@
 #include <zephyr/drivers/flash.h>
 #include <zephyr/logging/log.h>
 
-#define UPDATE_MAGIC_VALUE_AVAILABLE_RAW  0x5555AAAA
 #define UPDATE_MAGIC_VALUE_AVAILABLE_CBOR 0x55AA55AA
 #define UPDATE_MAGIC_VALUE_EMPTY	  0xFFFFFFFF
 
@@ -39,9 +38,11 @@ static suit_plat_err_t save_update_info(const struct update_candidate_info *info
 		return SUIT_PLAT_ERR_IO;
 	}
 
-	err = flash_write(fdev, suit_plat_mem_nvm_offset_get(addr), info, sizeof(*info));
-	if (err != 0) {
-		return SUIT_PLAT_ERR_IO;
+	if (info != NULL) {
+		err = flash_write(fdev, suit_plat_mem_nvm_offset_get(addr), info, sizeof(*info));
+		if (err != 0) {
+			return SUIT_PLAT_ERR_IO;
+		}
 	}
 
 	return SUIT_PLAT_SUCCESS;
@@ -80,6 +81,10 @@ suit_plat_err_t suit_storage_update_get(const uint8_t *addr, size_t size,
 		return SUIT_PLAT_ERR_NOT_FOUND;
 	}
 
+	if (info->update_regions_len > CONFIG_SUIT_STORAGE_N_UPDATE_REGIONS) {
+		return SUIT_PLAT_ERR_NOT_FOUND;
+	}
+
 	*len = info->update_regions_len;
 	*regions = (const suit_plat_mreg_t *)&(info->update_regions);
 
@@ -108,6 +113,10 @@ suit_plat_err_t suit_storage_update_set(uint8_t *addr, size_t size, const suit_p
 		return SUIT_PLAT_ERR_INVAL;
 	}
 
+	if (len == 0) {
+		return save_update_info(NULL, addr, size);
+	}
+
 	if (len > CONFIG_SUIT_STORAGE_N_UPDATE_REGIONS) {
 		LOG_ERR("Too many update regions (%d > %d)", len,
 			CONFIG_SUIT_STORAGE_N_UPDATE_REGIONS);
@@ -116,9 +125,7 @@ suit_plat_err_t suit_storage_update_set(uint8_t *addr, size_t size, const suit_p
 
 	info.update_magic_value = UPDATE_MAGIC_VALUE_AVAILABLE_CBOR;
 	info.update_regions_len = len;
-	if (len != 0) {
-		memcpy(&info.update_regions, regions, sizeof(regions[0]) * len);
-	}
+	memcpy(&info.update_regions, regions, sizeof(regions[0]) * len);
 
 	return save_update_info(&info, addr, size);
 }

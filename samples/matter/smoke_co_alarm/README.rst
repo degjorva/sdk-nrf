@@ -74,7 +74,8 @@ The device uses the SIT mode, when the wired power source is active.
 Otherwise, it switches to the LIT mode, to indicate that it is possible to save the energy, when using a battery power source.
 Dynamic switching is possible only if the ICD device meets all criteria for operating in the LIT mode (it has at least one client registered).
 DSLS support is disabled by default.
-To enable it, set the :kconfig:option:`CONFIG_CHIP_ICD_DSLS_SUPPORT` Kconfig option to ``y``.
+To enable it, set the :kconfig:option:`CONFIG_CHIP_ICD_DSLS_SUPPORT` Kconfig option to ``y`` and enable the feature support in the ICD Management cluster's feature map, by setting it to ``0xf`` in the sample's ``.zap`` file.
+Regenerate the source files after modifying the ``.zap`` file.
 
 In the LIT mode, the device responsiveness is much lower than in the SIT mode.
 However, you can request the device to become responsive to, for example, change its configuration.
@@ -108,26 +109,9 @@ Matter smoke CO alarm custom configurations
     :start-after: matter_light_bulb_sample_configuration_file_types_start
     :end-before: matter_light_bulb_sample_configuration_file_types_end
 
-Device Firmware Upgrade support
-===============================
-
 .. |Bluetooth| replace:: Bluetooth
 
-.. include:: ../lock/README.rst
-    :start-after: matter_door_lock_sample_build_with_dfu_start
-    :end-before: matter_door_lock_sample_build_with_dfu_end
-
-FEM support
-===========
-
-.. include:: /includes/sample_fem_support.txt
-
-Factory data support
-====================
-
-.. include:: ../lock/README.rst
-    :start-after: matter_door_lock_sample_factory_data_start
-    :end-before: matter_door_lock_sample_factory_data_end
+.. include:: /includes/advanced_conf_matter.txt
 
 User interface
 **************
@@ -233,6 +217,11 @@ Building and running
 .. |sample path| replace:: :file:`samples/matter/smoke_co_alarm`
 
 .. include:: /includes/build_and_run.txt
+
+.. |sample_or_app| replace:: sample
+.. |ipc_radio_dir| replace:: :file:`sysbuild/ipc_radio`
+
+.. include:: /includes/ipc_radio_conf.txt
 
 See `Configuration`_ for information about building the sample with the DFU support.
 
@@ -379,7 +368,7 @@ For this sample, you can use one of the following :ref:`onboarding information f
             :width: 200px
             :alt: QR code for commissioning the smoke co alarm device
 
-       - MT:6FCJ142C00KA0648G00
+       - MT:Y.K9042C00KA0648G00
        - 34970112332
 
 .. include:: ../lock/README.rst

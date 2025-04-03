@@ -37,7 +37,4 @@ config MATTER_OTA_IMAGE_FILE_NAME
 	help
 	  Provides the file name of the generated Matter OTA image in the build directory.
 
-config SUIT_BASE_MANIFEST_VARIANT
-	default "matter/v1"
-
-endif
+endif # MATTER

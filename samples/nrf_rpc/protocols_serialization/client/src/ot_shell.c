@@ -13,10 +13,13 @@
 #include <openthread/coap.h>
 #include <openthread/ip6.h>
 #include <openthread/link.h>
+#include <openthread/link_raw.h>
 #include <openthread/thread.h>
 #include <openthread/udp.h>
 #include <openthread/netdata.h>
+#include <openthread/netdiag.h>
 #include <openthread/message.h>
+#include <openthread/mesh_diag.h>
 #include <openthread/srp_client.h>
 #include <openthread/dns_client.h>
 
@@ -232,6 +235,26 @@ static otError ot_cli_command_discover(const struct shell *sh, size_t argc, char
 static int cmd_discover(const struct shell *sh, size_t argc, char *argv[])
 {
 	return ot_cli_command_invoke(ot_cli_command_discover, sh, argc, argv);
+}
+
+static otError ot_cli_command_radio(const struct shell *sh, size_t argc, char *argv[])
+{
+	if (argc != 2 || strcmp(argv[1], "time") != 0) {
+		return OT_ERROR_INVALID_COMMAND;
+	}
+
+	shell_print(sh, "%" PRIu64, otLinkRawGetRadioTime(NULL));
+
+	return OT_ERROR_NONE;
+}
+
+static int cmd_radio(const struct shell *sh, size_t argc, char *argv[])
+{
+	if (argc == 2 && strcmp(argv[1], "time") == 0) {
+		return ot_cli_command_invoke(ot_cli_command_radio, sh, argc, argv);
+	}
+
+	return ot_cli_command_send(sh, argc + 1, argv - 1);
 }
 
 static otError ot_cli_command_ifconfig(const struct shell *sh, size_t argc, char *argv[])
@@ -482,17 +505,25 @@ static void handle_udp_receive(void *context, otMessage *message, const otMessag
 	uint16_t length;
 	uint16_t offset;
 	uint16_t read;
+	otError error;
+	otThreadLinkInfo link_info;
 	char buf[128] = {0};
+	const struct shell *sh = context;
 
 	offset = otMessageGetOffset(message);
 	length = otMessageGetLength(message);
+	error = otMessageGetThreadLinkInfo(message, &link_info);
+	read = otMessageRead(message, offset, buf, MIN(length, sizeof(buf)));
 
-	read = otMessageRead(message, offset, buf, length);
+	shell_print(sh, "Received UDP message");
+	shell_hexdump(sh, buf, read);
 
-	if (read > 0) {
-		printk("RECEIVED: '%s'\n", buf);
-	} else {
-		printk("message empty\n");
+	if (error == OT_ERROR_NONE) {
+		shell_print(sh, "PAN ID: %x", link_info.mPanId);
+		shell_print(sh, "Channel: %u", link_info.mChannel);
+		shell_print(sh, "RSS: %d", link_info.mRss);
+		shell_print(sh, "LQI: %u", link_info.mLqi);
+		shell_print(sh, "Link security: %c", link_info.mLinkSecurity ? 'y' : 'n');
 	}
 }
 
@@ -505,7 +536,7 @@ static int cmd_test_udp_init(const struct shell *sh, size_t argc, char *argv[])
 
 	listen_sock_addr.mPort = PORT;
 
-	otUdpOpen(NULL, &udp_socket, handle_udp_receive, NULL);
+	otUdpOpen(NULL, &udp_socket, handle_udp_receive, (void *)sh);
 	otUdpBind(NULL, &udp_socket, &listen_sock_addr, OT_NETIF_THREAD);
 
 	return 0;
@@ -1028,6 +1059,378 @@ static int cmd_test_srp_client_ttl(const struct shell *sh, size_t argc, char *ar
 	return 0;
 }
 
+static int cmd_test_vendor_data(const struct shell *sh, size_t argc, char *argv[])
+{
+	otThreadSetVendorName(NULL, argv[1]);
+	otThreadSetVendorModel(NULL, argv[2]);
+	otThreadSetVendorSwVersion(NULL, argv[3]);
+
+	shell_print(sh, "Vendor name set to: %s", otThreadGetVendorName(NULL));
+	shell_print(sh, "Vendor model set to: %s", otThreadGetVendorModel(NULL));
+	shell_print(sh, "Vendor SW version set to: %s", otThreadGetVendorSwVersion(NULL));
+
+	return 0;
+}
+
+static void handle_receive_diagnostic_get(otError error, otMessage *message,
+					  const otMessageInfo *message_info, void *context)
+{
+	otNetworkDiagTlv diagTlv;
+	otNetworkDiagIterator iterator = OT_NETWORK_DIAGNOSTIC_ITERATOR_INIT;
+
+	const struct shell *sh = (const struct shell *)context;
+	char addr_string[NET_IPV6_ADDR_LEN];
+
+	if (error != OT_ERROR_NONE) {
+		shell_error(sh, "Failed to get the diagnostic response, error: %d", error);
+		return;
+	}
+
+	if (!net_addr_ntop(AF_INET6, message_info->mPeerAddr.mFields.m8,
+			   addr_string, sizeof(addr_string))) {
+		shell_error(sh, "Failed to convert the IPv6 address");
+		return;
+	}
+
+	shell_print(sh, "------------------------------------------------------------------");
+	shell_print(sh, "Received DIAG_GET.rsp/ans from %s", addr_string);
+
+	while (otThreadGetNextDiagnosticTlv(message, &iterator, &diagTlv) == OT_ERROR_NONE) {
+		shell_fprintf(sh, SHELL_NORMAL, "\nTLV type: 0x%x ", diagTlv.mType);
+		switch (diagTlv.mType) {
+		case OT_NETWORK_DIAGNOSTIC_TLV_EXT_ADDRESS:
+			shell_print(sh, "(MAC Extended Address TLV)");
+			shell_hexdump(sh, diagTlv.mData.mExtAddress.m8, OT_EXT_ADDRESS_SIZE);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_EUI64:
+			shell_print(sh, "(EUI64 TLV)");
+			shell_hexdump(sh, diagTlv.mData.mEui64.m8, OT_EXT_ADDRESS_SIZE);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_MODE:
+			shell_print(sh, "(Mode TLV)");
+			shell_print(sh, "RX on when idle: %s", diagTlv.mData.mMode.mRxOnWhenIdle ?
+				    "true" : "false");
+			shell_print(sh, "Device type: %s", diagTlv.mData.mMode.mDeviceType ?
+				    "true" : "false");
+			shell_print(sh, "Network data: %s", diagTlv.mData.mMode.mNetworkData ?
+				    "true" : "false");
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_CONNECTIVITY:
+			shell_print(sh, "(Connectivity TLV)");
+			shell_print(sh, "Parent priority: %d",
+				    diagTlv.mData.mConnectivity.mParentPriority);
+			shell_print(sh, "Link quality 3: %u",
+				    diagTlv.mData.mConnectivity.mLinkQuality3);
+			shell_print(sh, "Link quality 2: %u",
+				    diagTlv.mData.mConnectivity.mLinkQuality2);
+			shell_print(sh, "Link quality 1: %u",
+				    diagTlv.mData.mConnectivity.mLinkQuality1);
+			shell_print(sh, "Leader cost: %u",
+				    diagTlv.mData.mConnectivity.mLeaderCost);
+			shell_print(sh, "ID sequence: %u", diagTlv.mData.mConnectivity.mIdSequence);
+			shell_print(sh, "Active routers: %u",
+				    diagTlv.mData.mConnectivity.mActiveRouters);
+			shell_print(sh, "SED buffer size: %u",
+				    diagTlv.mData.mConnectivity.mSedBufferSize);
+			shell_print(sh, "SED datagram count: %u",
+				    diagTlv.mData.mConnectivity.mSedDatagramCount);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_ROUTE:
+			shell_print(sh, "(Route64 TLV)");
+			shell_print(sh, "ID sequence: %u", diagTlv.mData.mRoute.mIdSequence);
+			shell_print(sh, "Route count: %u", diagTlv.mData.mRoute.mRouteCount);
+
+			for (int i = 0; i < diagTlv.mData.mRoute.mRouteCount; i++) {
+				shell_print(sh, "\tRouter ID: %u",
+					    diagTlv.mData.mRoute.mRouteData[i].mRouterId);
+				shell_print(sh, "\tLink quality in: %u",
+					    diagTlv.mData.mRoute.mRouteData[i].mLinkQualityIn);
+				shell_print(sh, "\tLink quality out: %u",
+					    diagTlv.mData.mRoute.mRouteData[i].mLinkQualityOut);
+				shell_print(sh, "\tRoute cost: %u\n",
+					    diagTlv.mData.mRoute.mRouteData[i].mRouteCost);
+			}
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_LEADER_DATA:
+			shell_print(sh, "(Leader Data TLV)");
+			shell_print(sh, "Partition ID: 0x%x",
+				    diagTlv.mData.mLeaderData.mPartitionId);
+			shell_print(sh, "Weighting: %u", diagTlv.mData.mLeaderData.mWeighting);
+			shell_print(sh, "Data version: %u", diagTlv.mData.mLeaderData.mDataVersion);
+			shell_print(sh, "Stable data version: %u",
+				    diagTlv.mData.mLeaderData.mStableDataVersion);
+			shell_print(sh, "Leader router ID: 0x%x",
+				    diagTlv.mData.mLeaderData.mLeaderRouterId);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_MAC_COUNTERS:
+			shell_print(sh, "(MAC Counters TLV)");
+			shell_print(sh, "IfInUnknownProtos: %u",
+				    diagTlv.mData.mMacCounters.mIfInUnknownProtos);
+			shell_print(sh, "IfInErrors: %u", diagTlv.mData.mMacCounters.mIfInErrors);
+			shell_print(sh, "IfOutErrors: %u", diagTlv.mData.mMacCounters.mIfOutErrors);
+			shell_print(sh, "IfInUcastPkts: %u",
+				    diagTlv.mData.mMacCounters.mIfInUcastPkts);
+			shell_print(sh, "IfInBroadcastPkts: %u",
+				    diagTlv.mData.mMacCounters.mIfInBroadcastPkts);
+			shell_print(sh, "IfInDiscards: %u",
+				    diagTlv.mData.mMacCounters.mIfInDiscards);
+			shell_print(sh, "IfOutUcastPkts: %u",
+				    diagTlv.mData.mMacCounters.mIfOutUcastPkts);
+			shell_print(sh, "IfOutBroadcastPkts: %u",
+				    diagTlv.mData.mMacCounters.mIfOutBroadcastPkts);
+			shell_print(sh, "IfOutDiscards: %u",
+				    diagTlv.mData.mMacCounters.mIfOutDiscards);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_MLE_COUNTERS:
+			shell_print(sh, "(MLE Counters TLV)");
+			shell_print(sh, "DisabledRole: %u",
+				    diagTlv.mData.mMleCounters.mDisabledRole);
+			shell_print(sh, "DetachedRole: %u",
+				    diagTlv.mData.mMleCounters.mDetachedRole);
+			shell_print(sh, "ChildRole: %u", diagTlv.mData.mMleCounters.mChildRole);
+			shell_print(sh, "RouterRole: %u", diagTlv.mData.mMleCounters.mRouterRole);
+			shell_print(sh, "LeaderRole: %u", diagTlv.mData.mMleCounters.mLeaderRole);
+			shell_print(sh, "AttachAttempts: %u",
+				    diagTlv.mData.mMleCounters.mAttachAttempts);
+			shell_print(sh, "PartitionIdChanges: %u",
+				    diagTlv.mData.mMleCounters.mPartitionIdChanges);
+			shell_print(sh, "BetterPartitionAttachAttempts: %u",
+				    diagTlv.mData.mMleCounters.mBetterPartitionAttachAttempts);
+			shell_print(sh, "ParentChanges: %u",
+				    diagTlv.mData.mMleCounters.mParentChanges);
+			shell_print(sh, "TrackedTime: %llu",
+				    diagTlv.mData.mMleCounters.mTrackedTime);
+			shell_print(sh, "DisabledTime: %llu",
+				    diagTlv.mData.mMleCounters.mDisabledTime);
+			shell_print(sh, "DetachedTime: %llu",
+				    diagTlv.mData.mMleCounters.mDetachedTime);
+			shell_print(sh, "ChildTime: %llu", diagTlv.mData.mMleCounters.mChildTime);
+			shell_print(sh, "RouterTime: %llu", diagTlv.mData.mMleCounters.mRouterTime);
+			shell_print(sh, "LeaderTime: %llu", diagTlv.mData.mMleCounters.mLeaderTime);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_BATTERY_LEVEL:
+			shell_print(sh, "(Battery Level TLV)");
+			shell_print(sh, "Battery level: %u", diagTlv.mData.mBatteryLevel);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_TIMEOUT:
+			shell_print(sh, "(Timeout TLV)");
+			shell_print(sh, "Timeout: %u", diagTlv.mData.mTimeout);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_MAX_CHILD_TIMEOUT:
+			shell_print(sh, "(Max Child Timeout TLV)");
+			shell_print(sh, "Max child timeout: %u", diagTlv.mData.mMaxChildTimeout);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_SHORT_ADDRESS:
+			shell_print(sh, "(Address16 TLV)");
+			shell_print(sh, "Rloc16: 0x%x", diagTlv.mData.mAddr16);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_SUPPLY_VOLTAGE:
+			shell_print(sh, "(Supply Voltage TLV)");
+			shell_print(sh, "Supply voltage: %u", diagTlv.mData.mSupplyVoltage);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_VERSION:
+			shell_print(sh, "(Thread Version TLV)");
+			shell_print(sh, "Version: %u", diagTlv.mData.mVersion);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_VENDOR_NAME:
+			shell_print(sh, "(Vendor Name TLV)");
+			shell_print(sh, "Vendor name: %s", diagTlv.mData.mVendorName);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_VENDOR_MODEL:
+			shell_print(sh, "(Vendor Model TLV)");
+			shell_print(sh, "Vendor model: %s", diagTlv.mData.mVendorModel);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_VENDOR_SW_VERSION:
+			shell_print(sh, "(Vendor SW Version TLV)");
+			shell_print(sh, "Vendor SW version: %s", diagTlv.mData.mVendorSwVersion);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_THREAD_STACK_VERSION:
+			shell_print(sh, "(Thread Stack Version TLV)");
+			shell_print(sh, "Thread stack version: %s",
+				    diagTlv.mData.mThreadStackVersion);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_VENDOR_APP_URL:
+			shell_print(sh, "(Vendor App URL TLV)");
+			shell_print(sh, "Vendor app URL: %s", diagTlv.mData.mVendorAppUrl);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_NETWORK_DATA:
+			shell_print(sh, "(Network Data TLV)");
+			shell_hexdump(sh, diagTlv.mData.mNetworkData.m8,
+				      diagTlv.mData.mNetworkData.mCount);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_CHANNEL_PAGES:
+			shell_print(sh, "(Channel Pages TLV)");
+			shell_hexdump(sh, diagTlv.mData.mChannelPages.m8,
+				      diagTlv.mData.mChannelPages.mCount);
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_IP6_ADDR_LIST:
+			shell_print(sh, "(IPv6 Address List TLV)");
+			for (int i = 0; i < diagTlv.mData.mIp6AddrList.mCount; i++) {
+				shell_hexdump(sh, diagTlv.mData.mIp6AddrList.mList[i].mFields.m8,
+					      OT_IP6_ADDRESS_SIZE);
+			}
+			break;
+		case OT_NETWORK_DIAGNOSTIC_TLV_CHILD_TABLE:
+			shell_print(sh, "(Child Table TLV)");
+			for (int i = 0; i < diagTlv.mData.mChildTable.mCount; i++) {
+				shell_print(sh, "\tChild ID: %u",
+					    diagTlv.mData.mChildTable.mTable[i].mChildId);
+				shell_print(sh, "\tTimeout: %u",
+					    diagTlv.mData.mChildTable.mTable[i].mTimeout);
+				shell_print(sh, "\tLink quality: %u",
+					    diagTlv.mData.mChildTable.mTable[i].mLinkQuality);
+				shell_print(sh, "\tRX on when idle: %s",
+					    diagTlv.mData.mChildTable.mTable[i].mMode.mRxOnWhenIdle
+					    ? "true" : "false");
+				shell_print(sh, "\tDevice type: %s",
+					    diagTlv.mData.mChildTable.mTable[i].mMode.mDeviceType ?
+					    "true" : "false");
+				shell_print(sh, "\tNetwork data: %s",
+					    diagTlv.mData.mChildTable.mTable[i].mMode.mNetworkData ?
+					    "true" : "false");
+			}
+			break;
+
+		default:
+			shell_print(sh, "(Unknown TLV)");
+		}
+	}
+}
+
+static int cmd_test_net_diag(const struct shell *sh, size_t argc, char *argv[])
+{
+	uint8_t tlv_types[35];
+	uint8_t count = 0;
+	otIp6Address addr;
+
+	if (net_addr_pton(AF_INET6, argv[2], addr.mFields.m8)) {
+		shell_error(sh, "Failed to parse IPv6 address: %s", argv[1]);
+		return -EINVAL;
+	}
+
+	for (int arg = 3; arg < argc; ++arg) {
+		tlv_types[count] = shell_strtoul(argv[arg], 0, NULL);
+		count++;
+	}
+
+	if (strcmp(argv[1], "get") == 0) {
+		otThreadSendDiagnosticGet(NULL, &addr, tlv_types, count,
+					  handle_receive_diagnostic_get, (void *)sh);
+
+	} else if (strcmp(argv[1], "reset") == 0) {
+		otThreadSendDiagnosticReset(NULL, &addr, tlv_types, count);
+
+	} else {
+		shell_error(sh, "Invalid argument %s", argv[1]);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static void handle_mesh_diag_discover(otError error, otMeshDiagRouterInfo *router_info,
+				      void *context)
+{
+	const struct shell *sh = (const struct shell *)context;
+
+	if (error != OT_ERROR_NONE && error != OT_ERROR_PENDING) {
+		shell_error(sh, "Error in mesh diag discovery :%d", error);
+		return;
+	}
+
+	shell_print(sh, "------------------------------------------------------------------");
+	shell_print(sh, "Received mesh diagnostic response from Router ID: %u",
+		    router_info->mRouterId);
+	shell_print(sh, "Rloc16: 0x%x", router_info->mRloc16);
+	shell_print(sh, "Extended Address:");
+	shell_hexdump(sh, router_info->mExtAddress.m8, OT_EXT_ADDRESS_SIZE);
+	if (router_info->mVersion != OT_MESH_DIAG_VERSION_UNKNOWN) {
+		shell_print(sh, "Version: %u", router_info->mVersion);
+	}
+	shell_print(sh, "IsThisDeviceParent: %s",
+		    router_info->mIsThisDeviceParent ? "true" : "false");
+	shell_print(sh, "IsLeader: %s", router_info->mIsLeader ? "true" : "false");
+	shell_print(sh, "IsThisDevice: %s", router_info->mIsThisDevice ? "true" : "false");
+	shell_print(sh, "IsBorderRouter:  %s", router_info->mIsBorderRouter ? "true" : "false");
+
+	for (int i = 0; i <= OT_NETWORK_MAX_ROUTER_ID; i++) {
+		if (router_info->mLinkQualities[i]) {
+			shell_print(sh, "Link quality to Router %u: %u", i,
+				    router_info->mLinkQualities[i]);
+		}
+	}
+
+	if (router_info->mIp6AddrIterator) {
+		otIp6Address address;
+
+		error = otMeshDiagGetNextIp6Address(router_info->mIp6AddrIterator, &address);
+		if (error == OT_ERROR_NONE) {
+			shell_print(sh, "\nIPv6 addresses:");
+			do {
+				shell_hexdump(sh, address.mFields.m8, OT_IP6_ADDRESS_SIZE);
+				error = otMeshDiagGetNextIp6Address(router_info->mIp6AddrIterator,
+								    &address);
+
+			} while (error == OT_ERROR_NONE);
+		}
+	}
+
+	if (router_info->mChildIterator) {
+		otMeshDiagChildInfo child_info;
+
+		error = otMeshDiagGetNextChildInfo(router_info->mChildIterator, &child_info);
+		if (error == OT_ERROR_NONE) {
+			shell_print(sh, "\nChildren:");
+			do {
+				shell_print(sh, "\tRloc16 0x%x", child_info.mRloc16);
+				shell_print(sh, "\tLink quality: %u", child_info.mLinkQuality);
+				shell_print(sh, "\tRxOnWhenIdle: %s",
+					    child_info.mMode.mRxOnWhenIdle ? "true" : "false");
+				shell_print(sh, "\tDeviceType: %s",
+					    child_info.mMode.mDeviceType ? "true" : "false");
+				shell_print(sh, "\tNetworkData: %s",
+					    child_info.mMode.mNetworkData ? "true" : "false");
+				shell_print(sh, "\tIsThisDevice: %s",
+					    child_info.mIsThisDevice ? "true" : "false");
+				shell_print(sh, "\tIsBorderRouter: %s\n",
+					    child_info.mIsBorderRouter ? "true" : "false");
+				error = otMeshDiagGetNextChildInfo(router_info->mChildIterator,
+								   &child_info);
+			} while (error == OT_ERROR_NONE);
+		}
+	}
+}
+
+static int cmd_test_mesh_diag(const struct shell *sh, size_t argc, char *argv[])
+{
+	otMeshDiagDiscoverConfig config = {
+		.mDiscoverIp6Addresses = false,
+		.mDiscoverChildTable = false,
+	};
+
+	if (strcmp(argv[1], "cancel") == 0) {
+		otMeshDiagCancel(NULL);
+		return 0;
+	} else if (strcmp(argv[1], "start") != 0) {
+		shell_error(sh, "Invalid argument %s", argv[1]);
+		return -EINVAL;
+	}
+
+	for (int i = 2; i < argc; i++) {
+		if (strcmp(argv[i], "ip6") == 0) {
+			config.mDiscoverIp6Addresses = true;
+		} else if (strcmp(argv[i], "children") == 0) {
+			config.mDiscoverChildTable = true;
+		} else {
+			shell_error(sh, "Invalid argument %s", argv[i]);
+			return -EINVAL;
+		}
+	}
+	otMeshDiagDiscoverTopology(NULL, &config, handle_mesh_diag_discover, (void *)sh);
+
+	return 0;
+}
+
 static void print_txt_entry(const struct shell *sh, const otDnsTxtEntry *entry)
 {
 	char buffer[128];
@@ -1505,6 +1908,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 	SHELL_CMD_ARG(state, NULL, "Current role", cmd_state, 1, 1),
 	SHELL_CMD_ARG(thread, NULL, "Role management", cmd_thread, 2, 0),
 	SHELL_CMD_ARG(discover, NULL, "Thread discovery scan", cmd_discover, 1, 4),
+	SHELL_CMD_ARG(radio, NULL, "Radio configuration", cmd_radio, 1, 1),
 	SHELL_CMD_ARG(test_message, NULL, "Test message API", cmd_test_message, 1, 0),
 	SHELL_CMD_ARG(test_udp_init, NULL, "Test udp init API", cmd_test_udp_init, 1, 0),
 	SHELL_CMD_ARG(test_udp_send, NULL, "Test udp send API", cmd_test_udp_send, 1, 0),
@@ -1549,8 +1953,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 	SHELL_CMD_ARG(cmd_test_srp_client_service_clear, NULL, "Test SRP client service clear API",
 		      cmd_test_srp_client_service_clear, 2, 0),
 	SHELL_CMD_ARG(test_srp_client_add_service_remove, NULL,
-		      "Test SRP client service remove API",
-		      cmd_test_srp_client_service_remove, 2, 0),
+		      "Test SRP client service remove API", cmd_test_srp_client_service_remove, 2,
+		      0),
 	SHELL_CMD_ARG(test_srp_client_host_address_auto, NULL,
 		      "Test SRP client host address auto API",
 		      cmd_test_srp_client_host_address_auto, 1, 0),
@@ -1567,14 +1971,27 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      cmd_dns_client_resolve, 3, 0),
 	SHELL_CMD_ARG(test_dns_client_resolve4, NULL, "Resolve IPv4 address, args: <name> <server>",
 		      cmd_dns_client_resolve, 3, 0),
-	SHELL_CMD_ARG(test_dns_client_service, NULL, "Service instance resolution, args: <instance>"
-						     "<service> <server>",
+	SHELL_CMD_ARG(test_dns_client_service, NULL,
+		      "Service instance resolution, args: <instance>"
+		      "<service> <server>",
 		      cmd_dns_client_service, 4, 0),
-	SHELL_CMD_ARG(test_dns_client_servicehost, NULL, "Service instance resolution, args:"
-							 " <instance> <service> <server>",
+	SHELL_CMD_ARG(test_dns_client_servicehost, NULL,
+		      "Service instance resolution, args:"
+		      " <instance> <service> <server>",
 		      cmd_dns_client_service, 4, 0),
 	SHELL_CMD_ARG(test_dns_client_browse, NULL, "Service browsing, args <service> <server>",
 		      cmd_dns_client_browse, 3, 0),
+	SHELL_CMD_ARG(test_vendor_data, NULL,
+		      "Vendor data, args: <vendor-name> <vendor-model>"
+		      " <vendor-sw-version>",
+		      cmd_test_vendor_data, 4, 0),
+	SHELL_CMD_ARG(test_net_diag, NULL,
+		      "Network diag, args: <get|reset> <IPv6-address>"
+		      " <tlv-type ...>",
+		      cmd_test_net_diag, 4, 255),
+	SHELL_CMD_ARG(test_mesh_diag, NULL, "Mesh diag topology discovery, args: <start|cancel>"
+					    "[ip6] [children]",
+		      cmd_test_mesh_diag, 2, 2),
 	SHELL_SUBCMD_SET_END);
 
 SHELL_CMD_ARG_REGISTER(ot, &ot_cmds,

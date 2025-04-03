@@ -15,8 +15,10 @@ zephyr_library_sources(
   ot_rpc_instance.c
   ot_rpc_ip6.c
   ot_rpc_link.c
+  ot_rpc_link_raw.c
   ot_rpc_message.c
   ot_rpc_netdata.c
+  ot_rpc_netdiag.c
   ot_rpc_srp_client.c
   ot_rpc_thread.c
 )
@@ -24,6 +26,8 @@ zephyr_library_sources(
 zephyr_library_sources_ifdef(CONFIG_NET_L2_OPENTHREAD
   ot_rpc_udp.c
 )
+
+zephyr_library_sources_ifdef(CONFIG_OPENTHREAD_MESH_DIAG ot_rpc_meshdiag.c)
 
 zephyr_library_sources_ifdef(CONFIG_OPENTHREAD_RPC_NET_IF ot_rpc_if.c)
 

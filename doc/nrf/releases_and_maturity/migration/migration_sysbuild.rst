@@ -7,8 +7,8 @@ Migrating from multi-image builds to sysbuild
    :local:
    :depth: 2
 
-:ref:`sysbuild` is a build system used in zephyr to configure, build, and flash multiple images as part of a single project.
-It replaces the :ref:`child/parent system for multi-image builds <ug_multi_image>` in |NCS|.
+Zephyr's :ref:`sysbuild` is a build system used to configure, build, and program multiple images as part of a single project.
+It replaces the child/parent system for multi-image builds in the |NCS|.
 As the previous system has been deprecated, you must update your existing multi-image build projects to support being built using sysbuild.
 
 The following are the differences in how project configuration is performed in sysbuild compared to child/parent image configuration:
@@ -214,18 +214,27 @@ Sysbuild now handles the HEX generation with Google Fast Pair provisioning data.
 See the :ref:`ug_bt_fast_pair_provisioning_register` section in the Fast Pair integration guide for more details regarding the provisioning process.
 The following Kconfig options are available:
 
-+------------------------------------------+----------------------------------------+
-| Kconfig option                           | Description                            |
-+==========================================+========================================+
-|               ``SB_CONFIG_BT_FAST_PAIR`` | Enables Google Fast Pair functionality |
-+------------------------------------------+----------------------------------------+
++-------------------------------------------------------+--------------------------------------------------------------------+
+| Kconfig option                                        | Description                                                        |
++=======================================================+====================================================================+
+|  ``SB_CONFIG_BT_FAST_PAIR_MODEL_ID``                  | Sets the Model ID used for Fast Pair provisioning                  |
++-------------------------------------------------------+--------------------------------------------------------------------+
+|  ``SB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY`` | Sets the Anti-Spoofing Private Key used for Fast Pair provisioning |
++-------------------------------------------------------+--------------------------------------------------------------------+
 
-To generate the Google Fast Pair provisioning data, you must set this Kconfig option at the sysbuild level.
-The method of supplying the Fast Pair Model ID and Anti-Spoofing Private Key using the command line arguments remains unchanged from previous |NCS| versions.
+To generate the Google Fast Pair provisioning data, you must set both Kconfig options at the sysbuild level.
+The promptless (read-only) ``SB_CONFIG_BT_FAST_PAIR_PROV_DATA`` Kconfig option indicates that the provisioning data HEX generation has been triggered for your build.
 
 .. note::
-    When building with sysbuild, the value of the :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option is overwritten by ``SB_CONFIG_BT_FAST_PAIR``.
-    For more details about enabling Fast Pair for your application, see the :ref:`ug_bt_fast_pair_prerequisite_ops_kconfig` section in the Fast Pair integration guide.
+   The following items have been changed since the |NCS| v3.0.0:
+
+   * The Fast Pair sysbuild Kconfig options.
+     The ``SB_CONFIG_BT_FAST_PAIR`` Kconfig option is replaced with the ``SB_CONFIG_BT_FAST_PAIR_MODEL_ID`` and ``SB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY``.
+   * The method of supplying the Fast Pair Model ID and Anti-Spoofing Private Key.
+     The ``FP_MODEL_ID`` and ``FP_ANTI_SPOOFING_KEY`` CMake variables are replaced by the corresponding ``SB_CONFIG_BT_FAST_PAIR_MODEL_ID`` and ``SB_CONFIG_BT_FAST_PAIR_ANTI_SPOOFING_PRIVATE_KEY`` Kconfig options.
+   * Sysbuild no longer controls the value of the :kconfig:option:`CONFIG_BT_FAST_PAIR` Kconfig option that is defined in the main (default) image.
+
+   For more details about the HEX generation with Google Fast Pair provisioning data, see the :ref:`ug_bt_fast_pair_provisioning_register_hex_generation` section in the Fast Pair integration guide.
 
 .. _child_parent_to_sysbuild_migration_matter:
 
@@ -563,7 +572,7 @@ The expected output files are the following:
 Image overlay configuration
 ***************************
 
-In child/parent image configurations, an application could include additional configuration files in the ``child_image`` folder that would be applied to these images (see :ref:`ug_multi_image_permanent_changes`).
+In child/parent image configurations, an application could include additional configuration files in the ``child_image`` folder that would be applied to these images.
 This feature has been adapted in sysbuild; see :ref:`sysbuild_application_configuration` for an overview.
 You must update child/parent image configuration to use it with sysbuild, as the way these files can be used differs:
 

@@ -16,8 +16,10 @@ config DESKTOP_COMMON_MODULES
 	imply DESKTOP_SETTINGS_LOADER
 	imply DESKTOP_POWER_MANAGER
 
-choice LIBC_IMPLEMENTATION
-	default MINIMAL_LIBC
+config DESKTOP_LTO_DEFAULTS
+	bool
+	default y
+	imply LTO
+	imply ISR_TABLES_LOCAL_DECLARATION
 	help
-	  Use minimal libc implementation to reduce memory footprint.
-endchoice
+	  nRF Desktop enables LTO to limit memory usage and improve performance.

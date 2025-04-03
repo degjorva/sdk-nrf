@@ -23,20 +23,23 @@ Examples:
 
 NRF = [
     ("introduction", "index"), # Introduction
-    ("ug_nrf9160_gs", "gsg_guides/nrf9160_gs"), # Getting started with nRF9160 DK
-    ("working_with_nrf/nrf91/nrf9160_gs", "gsg_guides/nrf9160_gs"),
-    ("device_guides/working_with_nrf/nrf91/nrf9160_gs", "gsg_guides/nrf9160_gs"),
-    ("ug_thingy91_gsg", "gsg_guides/thingy91_gsg"), # Getting started with Thingy:91
-    ("working_with_nrf/nrf91/thingy91_gsg", "gsg_guides/thingy91_gsg"),
-    ("device_guides/working_with_nrf/nrf91/thingy91_gsg", "gsg_guides/thingy91_gsg"),
+    ("ug_nrf9160_gs", "gsg_guides"), # Getting started with nRF9160 DK (removed in v3.0.0)
+    ("working_with_nrf/nrf91/nrf9160_gs", "gsg_guides"),
+    ("device_guides/working_with_nrf/nrf91/nrf9160_gs", "gsg_guides"),
+    ("gsg_guides/nrf9160_gs", "gsg_guides"),
+    ("ug_thingy91_gsg", "gsg_guides"), # Getting started with Thingy:91 (removed in v3.0.0)
+    ("working_with_nrf/nrf91/thingy91_gsg", "gsg_guides"),
+    ("device_guides/working_with_nrf/nrf91/thingy91_gsg", "gsg_guides"),
+    ("gsg_guides/thingy91_gsg", "gsg_guides"),
     ("ug_nrf7002_gs", "gsg_guides/nrf7002_gs"), # Getting started with nRF7002 DK
     ("working_with_nrf/nrf70/gs", "gsg_guides/nrf7002_gs"),
     ("device_guides/working_with_nrf/nrf70/gs", "gsg_guides/nrf7002_gs"),
     ("device_guides/working_with_nrf/nrf53/nrf5340_gs", "gsg_guides"), # Getting started with nRF5340 DK (removed in v2.8.0)
     ("gsg_guides/nrf5340_gs", "gsg_guides"),
-    ("ug_thingy53_gs", "gsg_guides/thingy53_gs"), # Getting started with Thingy:53
-    ("working_with_nrf/nrf53/thingy53_gs", "gsg_guides/thingy53_gs"),
-    ("device_guides/working_with_nrf/nrf53/thingy53_gs", "gsg_guides/thingy53_gs"),
+    ("ug_thingy53_gs", "app_dev/device_guides/thingy53/thingy53_precompiled"), # Getting started with Thingy:53 (removed in v3.0.0)
+    ("working_with_nrf/nrf53/thingy53_gs", "app_dev/device_guides/thingy53/thingy53_precompiled"),
+    ("device_guides/working_with_nrf/nrf53/thingy53_gs", "app_dev/device_guides/thingy53/thingy53_precompiled"),
+    ("gsg_guides/thingy53_gs", "app_dev/device_guides/thingy53/thingy53_precompiled"),
     ("ug_nrf52_gs", "gsg_guides"), # Getting started with nRF52 Series (removed in v2.8.0)
     ("working_with_nrf/nrf52/gs", "gsg_guides"),
     ("device_guides/working_with_nrf/nrf52/gs", "gsg_guides"),
@@ -53,11 +56,15 @@ NRF = [
     ("gs_recommended_versions", "installation/recommended_versions"), # Requirements reference
     ("getting_started/recommended_versions", "installation/recommended_versions"),
     ("create_application", "app_dev/create_application"), # Creating an application
-    ("app_boards", "app_dev/board_support/index"), # Board support
-    ("config_and_build/board_support", "app_dev/board_support/index"),
-    ("config_and_build/board_support/index", "app_dev/board_support/index"),
-    ("config_and_build/board_support/board_names", "app_dev/board_support/board_names"), # Board names
-    ("config_and_build/board_support/processing_environments", "app_dev/board_support/processing_environments"), # Processing environments
+    ("app_boards", "app_dev/board_names"), # Board support (merged with Board names in v3.0.0)
+    ("config_and_build/board_support", "app_dev/board_names"),
+    ("config_and_build/board_support/index", "app_dev/board_names"),
+    ("app_dev/board_support/index", "app_dev/board_names"),
+    ("config_and_build/board_support/board_names", "app_dev/board_names"), # Board names (moved to top of the hierarchy in v3.0.0)
+    ("app_dev/board_support/board_names", "app_dev/board_names"),
+    ("config_and_build/board_support/processing_environments", "security/tfm/processing_environments"), # Processing environments (moved under Security > TF-M in v3.0.0)
+    ("app_dev/board_support/processing_environments", "security/tfm/processing_environments"),
+    ("security/processing_environments", "security/tfm/processing_environments"),
     ("gs_modifying", "app_dev/config_and_build/index"), # Configuring and building (landing)
     ("getting_started/modifying", "app_dev/config_and_build/index"),
     ("config_and_build/modifying", "app_dev/config_and_build/index"),
@@ -90,9 +97,10 @@ NRF = [
     ("config_and_build/companion_components", "app_dev/companion_components"), # Using companion components
     ("config_and_build/output_build_files", "app_dev/config_and_build/output_build_files"), # Output build files (image files)
     ("config_and_build/configuring_app/output_build_files", "app_dev/config_and_build/output_build_files"),
-    ("ug_multi_image", "app_dev/config_and_build/multi_image"), # Multi-image build using child and parent images
-    ("app_dev/multi_image/index", "app_dev/config_and_build/multi_image"),
-    ("config_and_build/multi_image", "app_dev/config_and_build/multi_image"),
+    ("ug_multi_image", "app_dev/config_and_build/sysbuild/index"), # Multi-image build using child and parent images (removed in v3.0.0)
+    ("app_dev/multi_image/index", "app_dev/config_and_build/sysbuild/index"),
+    ("config_and_build/multi_image", "app_dev/config_and_build/sysbuild/index"),
+    ("app_dev/config_and_build/multi_image", "app_dev/config_and_build/sysbuild/index"),
     ("ug_fw_update", "app_dev/bootloaders_dfu/index"), # Firmware updates (removed after 2.5.0)
     ("app_dev/bootloaders_and_dfu/fw_update", "app_dev/bootloaders_dfu/index"),
     ("config_and_build/bootloaders_and_dfu/fw_update", "app_dev/bootloaders_dfu/index"),
@@ -111,13 +119,14 @@ NRF = [
     ("config_and_build/bootloaders_dfu/mcuboot_nsib/bootloader_quick_start", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_quick_start"),
     ("config_and_build/bootloaders/bootloader_adding_sysbuild", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding_sysbuild"), # Enabling a bootloader chain using sysbuild
     ("config_and_build/bootloaders_dfu/mcuboot_nsib/bootloader_adding_sysbuild", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding_sysbuild"),
-    ("ug_bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding"), # "Enabling a bootloader chain using child and parent images (deprecated)"
-    ("app_dev/bootloaders_and_dfu/bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding"),
-    ("config_and_build/bootloaders_and_dfu/bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding"),
-    ("config_and_build/bootloaders/bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding"),
-    ("config_and_build/bootloaders_dfu/mcuboot_nsib/bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding"),
+    ("ug_bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding_sysbuild"), # "Enabling a bootloader chain using child and parent images (removed in v3.0.0)"
+    ("app_dev/bootloaders_and_dfu/bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding_sysbuild"),
+    ("config_and_build/bootloaders_and_dfu/bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding_sysbuild"),
+    ("config_and_build/bootloaders/bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding_sysbuild"),
+    ("config_and_build/bootloaders_dfu/mcuboot_nsib/bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding_sysbuild"),
     ("ug_bootloader", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader"), # Secure bootloader chain
     ("app_dev/bootloaders_and_dfu/bootloader", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader"),
+    ("app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader_adding_sysbuild"),
     ("config_and_build/bootloaders_and_dfu/bootloader", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader"),
     ("config_and_build/bootloaders/bootloader", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader"),
     ("config_and_build/bootloaders_dfu/mcuboot_nsib/bootloader", "app_dev/bootloaders_dfu/mcuboot_nsib/bootloader"),
@@ -221,11 +230,12 @@ NRF = [
     ("device_guides/nrf53/features_nrf53", "app_dev/device_guides/nrf53/features_nrf53"), # Features of nRF53 Series
     ("device_guides/nrf53/building_nrf53", "app_dev/device_guides/nrf53/building_nrf53"), # Building and programming with nRF53 Series
     ("device_guides/nrf53/fota_update_nrf5340", "app_dev/device_guides/nrf53/fota_update_nrf5340"), # FOTA updates with nRF5340 DK
-    ("device_guides/nrf53/multi_image_nrf5340", "app_dev/device_guides/nrf53/multi_image_nrf5340"), # Multi-image builds on the nRF5340 DK using child and parent images
+    ("device_guides/nrf53/multi_image_nrf5340", "app_dev/config_and_build/sysbuild/index"), # Multi-image builds on the nRF5340 DK using child and parent images (removed in v3.0.0)
     ("device_guides/nrf53/simultaneous_multi_image_dfu_nrf5340", "app_dev/device_guides/nrf53/simultaneous_multi_image_dfu_nrf5340"), # Simultaneous multi-image DFU with nRF5340 DK
     ("device_guides/nrf53/serial_recovery", "app_dev/device_guides/nrf53/serial_recovery"), # MCUboot’s serial recovery of the networking core image
     ("device_guides/nrf53/logging_nrf5340", "app_dev/device_guides/nrf53/logging_nrf5340"), # Getting logging output with nRF5340 DK
     ("device_guides/nrf53/thingy53_application_guide", "app_dev/device_guides/thingy53/thingy53_application_guide"), # Application guide for Thingy:53
+    ("app_dev/device_guides/nrf53/multi_image_nrf5340", "app_dev/config_and_build/sysbuild/index"),
     ("app_dev/device_guides/nrf53/thingy53_application_guide", "app_dev/device_guides/thingy53/thingy53_application_guide"),
     ("device_guides/working_with_nrf/nrf53/qspi_xip_guide", "app_dev/device_guides/nrf53/qspi_xip_guide_nrf5340"), # External execute in place (XIP) configuration on the nRF5340 SoC
     ("device_guides/nrf53/qspi_xip_guide_nrf5340", "app_dev/device_guides/nrf53/qspi_xip_guide_nrf5340"),
@@ -282,8 +292,9 @@ NRF = [
     ("app_dev/optimizing/power", "test_and_optimize/optimizing/power"),
     ("security_chapter", "security"), # Security (landing)
     ("security/security", "security"), # Security (subpage -- removed in v2.8.0)
-    ("ug_tfm", "security/tfm"), # Running applications with Trusted Firmware-M
-    ("app_dev/tfm/index", "security/tfm"),
+    ("ug_tfm", "security/tfm/tfm"), # Running applications with Trusted Firmware-M
+    ("app_dev/tfm/index", "security/tfm/tfm"),
+    ("security/tfm", "security/tfm/tfm"),
     ("app_dev/ap_protect/index", "security/ap_protect"), # Enabling access port protection mechanism
     ("ug_ble_controller", "protocols/bt/index"), # Bluetooth LE Controller
     ("protocols/ble/index", "protocols/bt/index"),
@@ -384,17 +395,28 @@ NRF = [
     ("device_guides/working_with_nrf/nrf70/developing/regulatory_support", "protocols/wifi/regulatory_support"), # Operating with regulatory support
     ("device_guides/working_with_nrf/nrf70/developing/debugging", "protocols/wifi/debugging"), # Debugging
     ("ug_zigbee", "protocols/zigbee/index"), # Zigbee (landing)
-    ("ug_zigbee_qsg", "protocols/zigbee/qsg"), # Zigbee quick start guide
-    ("ug_zigbee_supported_features", "protocols/zigbee/supported_features"), # Supported Zigbee features
-    ("ug_zigbee_architectures", "protocols/zigbee/architectures"), # Zigbee architectures
-    ("ug_zigbee_commissioning", "protocols/zigbee/commissioning"), # Zigbee commissioning
-    ("ug_zigbee_memory", "protocols/zigbee/memory"), # Zigbee memory requirements
-    ("ug_zigbee_configuring", "protocols/zigbee/configuring"), # Configuring Zigbee in nRF Connect SDK
-    ("ug_zigbee_configuring_libraries", "protocols/zigbee/configuring_libraries"), # Configuring Zigbee libraries in nRF Connect SDK
-    ("ug_zigbee_configuring_zboss_traces", "protocols/zigbee/configuring_zboss_traces"), # Configuring ZBOSS traces in nRF Connect SDK
-    ("ug_zigbee_adding_clusters", "protocols/zigbee/adding_clusters"), # Adding ZCL clusters to application (removed after 2.5.0)
-    ("ug_zigbee_other_ecosystems", "protocols/zigbee/other_ecosystems"), # Configuring Zigbee samples for other ecosystems
-    ("ug_zigbee_tools", "protocols/zigbee/tools"), # Zigbee tools
+    ("ug_zigbee_qsg", "protocols/zigbee/index"), # Zigbee quick start guide (removed after v3.0.0)
+    ("protocols/zigbee/qsg", "protocols/zigbee/index"),
+    ("ug_zigbee_supported_features", "protocols/zigbee/index"), # Supported Zigbee features (removed after v3.0.0)
+    ("protocols/zigbee/supported_features", "protocols/zigbee/index"),
+    ("ug_zigbee_architectures", "protocols/zigbee/index"), # Zigbee architectures (removed after v3.0.0)
+    ("protocols/zigbee/architectures", "protocols/zigbee/index"),
+    ("ug_zigbee_commissioning", "protocols/zigbee/index"), # Zigbee commissioning (removed after v3.0.0)
+    ("protocols/zigbee/commissioning", "protocols/zigbee/index"),
+    ("ug_zigbee_memory", "protocols/zigbee/index"), # Zigbee memory requirements (removed after v3.0.0)
+    ("protocols/zigbee/memory", "protocols/zigbee/index"),
+    ("ug_zigbee_configuring", "protocols/zigbee/index"), # Configuring Zigbee in nRF Connect SDK (removed after v3.0.0)
+    ("protocols/zigbee/configuring", "protocols/zigbee/index"),
+    ("ug_zigbee_configuring_libraries", "protocols/zigbee/index"), # Configuring Zigbee libraries in nRF Connect SDK (removed after v3.0.0)
+    ("protocols/zigbee/configuring_libraries", "protocols/zigbee/index"),
+    ("ug_zigbee_configuring_zboss_traces", "protocols/zigbee/index"), # Configuring ZBOSS traces in nRF Connect SDK (removed after v3.0.0)
+    ("protocols/zigbee/configuring_zboss_traces", "protocols/zigbee/index"),
+    ("ug_zigbee_adding_clusters", "protocols/zigbee/index"), # Adding ZCL clusters to application (removed after 2.5.0)
+    ("protocols/zigbee/adding_clusters", "protocols/zigbee/index"),
+    ("ug_zigbee_other_ecosystems", "protocols/zigbee/index"), # Configuring Zigbee samples for other ecosystems (removed after v3.0.0)
+    ("protocols/zigbee/other_ecosystems", "protocols/zigbee/index"),
+    ("ug_zigbee_tools", "protocols/zigbee/index"), # Zigbee tools (removed after v3.0.0)
+    ("protocols/zigbee/tools", "protocols/zigbee/index"),
     ("applications/nrf5340_audio/README", "applications/nrf5340_audio/index"), # nRF5340 Audio applications (landing)
     ("samples/samples_bl", "samples/bl"), # Bluetooth samples (landing)
     ("samples/bluetooth/connection_event_trigger/README", "samples/bluetooth/event_trigger/README"),

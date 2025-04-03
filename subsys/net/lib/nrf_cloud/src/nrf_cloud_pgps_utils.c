@@ -562,6 +562,7 @@ static int downloader_callback(const struct downloader_evt *event)
 		 */
 		if ((socket_retries_left) && ((event->error == -ENOTCONN) ||
 					      (event->error == -ECONNREFUSED) ||
+					      (event->error == -EAGAIN) ||
 					      (event->error == -ECONNRESET))) {
 			LOG_WRN("Download socket error. %d retries left...",
 				socket_retries_left);
@@ -581,7 +582,7 @@ static int downloader_callback(const struct downloader_evt *event)
 
 	ret = downloader_cancel(&dl);
 
-	if (ret) {
+	if (ret && (ret != -EPERM)) {
 		LOG_ERR("Error disconnecting from download client:%d", ret);
 	}
 #endif

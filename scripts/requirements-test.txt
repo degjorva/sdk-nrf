@@ -1,5 +1,6 @@
 # packages required to run tests for Python scripts
 cryptography
-ecdsa
 intelhex
 pytest
+pyyaml
+west

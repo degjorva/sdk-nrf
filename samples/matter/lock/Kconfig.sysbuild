@@ -14,16 +14,16 @@ config NRF_DEFAULT_IPC_RADIO
 # Enable IEEE802.15.4 serialization to network core
 # This config automatically pulls in the `overlay-802154.conf` in the ipc_radio image
 config NETCORE_IPC_RADIO_IEEE802154
-	default y if (SOC_SERIES_NRF53X || SOC_SERIES_NRF54HX) && !WIFI_NRF70
+	default y if SOC_SERIES_NRF53X && !WIFI_NRF70
 
 # Enable Bluetooth serialization to network core
 # This config automatically pulls in the `overlay-bt_hci_ipc.conf` in the ipc_radio image
 config NETCORE_IPC_RADIO_BT_HCI_IPC
-	default y if (SOC_SERIES_NRF53X || SOC_SERIES_NRF54HX)
+	default y if SOC_SERIES_NRF53X
 
 #### Bootloader
 choice BOOTLOADER
-	default BOOTLOADER_MCUBOOT if !BOARD_NRF21540DK && !SOC_SERIES_NRF54HX
+	default BOOTLOADER_MCUBOOT if !BOARD_NRF21540DK
 endchoice
 
 if BOOTLOADER_MCUBOOT
@@ -77,21 +77,8 @@ endif # BOARD_NRF54L15DK_NRF54L15_CPUAPP_NS
 
 endif # BOOTLOADER_MCUBOOT
 
-if SOC_SERIES_NRF54HX
-
-config SUIT_ENVELOPE
-	default y
-
-config SUIT_BUILD_FLASH_COMPANION
-	default y
-
-config SUIT_MULTI_IMAGE_PACKAGE_BUILD
-	default y if MATTER_OTA
-
-endif # SOC_SERIES_NRF54HX
-
 #### Enable generating factory data
 config MATTER_FACTORY_DATA_GENERATE
 	default y if !BOARD_NRF21540DK
 
-source "${ZEPHYR_BASE}/share/sysbuild/Kconfig"
+source "share/sysbuild/Kconfig"

@@ -31,6 +31,7 @@
 #include "hci_internal.h"
 #include "ecdh.h"
 #include "radio_nrf5_txp.h"
+#include "cs_antenna_switch.h"
 
 #define DT_DRV_COMPAT nordic_bt_hci_sdc
 
@@ -262,7 +263,10 @@ BUILD_ASSERT(!IS_ENABLED(CONFIG_BT_PERIPHERAL) ||
 
 #if defined(CONFIG_BT_CTLR_SDC_CS_COUNT)
 #define SDC_MEM_CS_POOL							\
-	SDC_MEM_CS(CONFIG_BT_CTLR_SDC_CS_COUNT) +	\
+	SDC_MEM_CS( \
+		CONFIG_BT_CTLR_SDC_CS_COUNT, \
+		CONFIG_BT_CTLR_SDC_CS_MAX_ANTENNA_PATHS, \
+		IS_ENABLED(CONFIG_BT_CTLR_SDC_CS_STEP_MODE3)) + \
 	SDC_MEM_CS_SETUP_PHASE_LINKS(SDC_CENTRAL_COUNT + PERIPHERAL_COUNT)
 #else
 #define SDC_MEM_CS_POOL 0
@@ -326,6 +330,23 @@ static struct k_work receive_work;
 static inline void receive_signal_raise(void)
 {
 	mpsl_work_submit(&receive_work);
+}
+
+/** Storage for HCI packets from controller to host */
+static struct {
+	/* Buffer for the HCI packet. */
+	uint8_t buf[HCI_RX_BUF_SIZE];
+	/* Type of the HCI packet the buffer contains. */
+	sdc_hci_msg_type_t type;
+} rx_hci_msg;
+
+static void bt_buf_rx_freed_cb(enum bt_buf_type type_mask)
+{
+	if (((rx_hci_msg.type == SDC_HCI_MSG_TYPE_EVT && (type_mask & BT_BUF_EVT) != 0u) ||
+	     (rx_hci_msg.type == SDC_HCI_MSG_TYPE_DATA && (type_mask & BT_BUF_ACL_IN) != 0u) ||
+	     (rx_hci_msg.type == SDC_HCI_MSG_TYPE_ISO && (type_mask & BT_BUF_ISO_IN) != 0u))) {
+		receive_signal_raise();
+	}
 }
 
 static int cmd_handle(struct net_buf *cmd)
@@ -429,16 +450,16 @@ static int hci_driver_send(const struct device *dev, struct net_buf *buf)
 	return err;
 }
 
-static void data_packet_process(const struct device *dev, uint8_t *hci_buf)
+static int data_packet_process(const struct device *dev, uint8_t *hci_buf)
 {
-	struct net_buf *data_buf = bt_buf_get_rx(BT_BUF_ACL_IN, K_FOREVER);
+	struct net_buf *data_buf = bt_buf_get_rx(BT_BUF_ACL_IN, K_NO_WAIT);
 	struct bt_hci_acl_hdr *hdr = (void *)hci_buf;
 	uint16_t hf, handle, len;
 	uint8_t flags, pb, bc;
 
 	if (!data_buf) {
-		LOG_ERR("No data buffer available");
-		return;
+		LOG_DBG("No data buffer available");
+		return -ENOBUFS;
 	}
 
 	len = sys_le16_to_cpu(hdr->len);
@@ -452,8 +473,7 @@ static void data_packet_process(const struct device *dev, uint8_t *hci_buf)
 		LOG_ERR("Event buffer too small. %u > %u",
 			len + sizeof(*hdr),
 			HCI_RX_BUF_SIZE);
-		k_panic();
-		return;
+		return -ENOMEM;
 	}
 
 	LOG_DBG("Data: handle (0x%02x), PB(%01d), BC(%01d), len(%u)", handle,
@@ -464,28 +484,36 @@ static void data_packet_process(const struct device *dev, uint8_t *hci_buf)
 	struct hci_driver_data *driver_data = dev->data;
 
 	driver_data->recv_func(dev, data_buf);
+
+	return 0;
 }
 
-static void iso_data_packet_process(const struct device *dev, uint8_t *hci_buf)
+static int iso_data_packet_process(const struct device *dev, uint8_t *hci_buf)
 {
-	struct net_buf *data_buf = bt_buf_get_rx(BT_BUF_ISO_IN, K_FOREVER);
+	struct net_buf *data_buf = bt_buf_get_rx(BT_BUF_ISO_IN, K_NO_WAIT);
 	struct bt_hci_iso_hdr *hdr = (void *)hci_buf;
 
 	uint16_t len = sys_le16_to_cpu(hdr->len);
+
+	if (!data_buf) {
+		LOG_DBG("No data buffer available");
+		return -ENOBUFS;
+	}
 
 	if (len + sizeof(*hdr) > HCI_RX_BUF_SIZE) {
 		LOG_ERR("Event buffer too small. %u > %u",
 			len + sizeof(*hdr),
 			HCI_RX_BUF_SIZE);
-		k_panic();
-		return;
+		return -ENOMEM;
 	}
 
 	net_buf_add_mem(data_buf, &hci_buf[0], len + sizeof(*hdr));
 
 	struct hci_driver_data *driver_data = dev->data;
 
-	driver_data->recv_func(dev, data_buf);
+	(void)driver_data->recv_func(dev, data_buf);
+
+	return 0;
 }
 
 static bool event_packet_is_discardable(const uint8_t *hci_buf)
@@ -532,7 +560,7 @@ static bool event_packet_is_discardable(const uint8_t *hci_buf)
 	}
 }
 
-static void event_packet_process(const struct device *dev, uint8_t *hci_buf)
+static int event_packet_process(const struct device *dev, uint8_t *hci_buf)
 {
 	bool discardable = event_packet_is_discardable(hci_buf);
 	struct bt_hci_evt_hdr *hdr = (void *)hci_buf;
@@ -542,8 +570,7 @@ static void event_packet_process(const struct device *dev, uint8_t *hci_buf)
 		LOG_ERR("Event buffer too small. %u > %u",
 			hdr->len + sizeof(*hdr),
 			HCI_RX_BUF_SIZE);
-		k_panic();
-		return;
+		return -ENOMEM;
 	}
 
 	if (hdr->evt == BT_HCI_EVT_LE_META_EVENT) {
@@ -569,67 +596,85 @@ static void event_packet_process(const struct device *dev, uint8_t *hci_buf)
 		LOG_DBG("Event (0x%02x) len %u", hdr->evt, hdr->len);
 	}
 
-	evt_buf = bt_buf_get_evt(hdr->evt, discardable,
-				 discardable ? K_NO_WAIT : K_FOREVER);
+	evt_buf = bt_buf_get_evt(hdr->evt, discardable, K_NO_WAIT);
 
 	if (!evt_buf) {
 		if (discardable) {
 			LOG_DBG("Discarding event");
-			return;
+			return 0;
 		}
 
-		LOG_ERR("No event buffer available");
-		return;
+		LOG_DBG("No event buffer available");
+		return -ENOBUFS;
 	}
 
 	net_buf_add_mem(evt_buf, &hci_buf[0], hdr->len + sizeof(*hdr));
 
 	struct hci_driver_data *driver_data = dev->data;
 
-	driver_data->recv_func(dev, evt_buf);
+	(void)driver_data->recv_func(dev, evt_buf);
+
+	return 0;
 }
 
-static bool fetch_and_process_hci_msg(const struct device *dev, uint8_t *p_hci_buffer)
+static int fetch_hci_msg(uint8_t *p_hci_buffer, sdc_hci_msg_type_t *msg_type)
 {
 	int errcode;
-	sdc_hci_msg_type_t msg_type;
 
 	errcode = MULTITHREADING_LOCK_ACQUIRE();
 	if (!errcode) {
-		errcode = hci_internal_msg_get(p_hci_buffer, &msg_type);
+		errcode = hci_internal_msg_get(p_hci_buffer, msg_type);
 		MULTITHREADING_LOCK_RELEASE();
 	}
 
-	if (errcode) {
-		return false;
-	}
+	return errcode;
+}
+
+static int process_hci_msg(const struct device *dev, uint8_t *p_hci_buffer,
+			    sdc_hci_msg_type_t msg_type)
+{
+	int err;
 
 	if (msg_type == SDC_HCI_MSG_TYPE_EVT) {
-		event_packet_process(dev, p_hci_buffer);
+		err = event_packet_process(dev, p_hci_buffer);
 	} else if (msg_type == SDC_HCI_MSG_TYPE_DATA) {
-		data_packet_process(dev, p_hci_buffer);
+		err = data_packet_process(dev, p_hci_buffer);
 	} else if (msg_type == SDC_HCI_MSG_TYPE_ISO) {
-		iso_data_packet_process(dev, p_hci_buffer);
+		err = iso_data_packet_process(dev, p_hci_buffer);
 	} else {
 		if (!IS_ENABLED(CONFIG_BT_CTLR_SDC_SILENCE_UNEXPECTED_MSG_TYPE)) {
 			LOG_ERR("Unexpected msg_type: %u. This if-else needs a new branch",
 				msg_type);
 		}
+		err = 0;
 	}
 
-	return true;
+	return err;
 }
 
 void hci_driver_receive_process(void)
 {
-	static uint8_t hci_buf[HCI_RX_BUF_SIZE];
-
 	const struct device *dev = DEVICE_DT_GET(DT_DRV_INST(0));
+	int err;
 
-	if (fetch_and_process_hci_msg(dev, &hci_buf[0])) {
-		/* Let other threads of same priority run in between. */
-		receive_signal_raise();
+	if (rx_hci_msg.type == SDC_HCI_MSG_TYPE_NONE &&
+	    fetch_hci_msg(&rx_hci_msg.buf[0], &rx_hci_msg.type) != 0) {
+		return;
 	}
+
+	err = process_hci_msg(dev, &rx_hci_msg.buf[0], rx_hci_msg.type);
+	if (err == -ENOBUFS) {
+		/* If we got -ENOBUFS, wait for the signal from the host. */
+		return;
+	} else if (err) {
+		LOG_ERR("Unknown error when processing hci message %d", err);
+		k_panic();
+	}
+
+	rx_hci_msg.type = SDC_HCI_MSG_TYPE_NONE;
+
+	/* Let other threads of same priority run in between. */
+	receive_signal_raise();
 }
 
 static void receive_work_handler(struct k_work *work)
@@ -939,7 +984,12 @@ static int configure_supported_features(void)
 		if (err) {
 			return -ENOTSUP;
 		}
-		err = sdc_support_channel_sounding();
+#if defined(CONFIG_BT_CTLR_SDC_CS_MULTIPLE_ANTENNA_SUPPORT)
+		err = sdc_support_channel_sounding(cs_antenna_switch_func);
+		cs_antenna_switch_init();
+#else
+		err = sdc_support_channel_sounding(NULL);
+#endif
 		if (err) {
 			return -ENOTSUP;
 		}
@@ -1048,17 +1098,17 @@ static int configure_memory_usage(void)
 		}
 	}
 
-	if (IS_ENABLED(CONFIG_BT_OBSERVER)) {
-		cfg.scan_buffer_cfg.count = CONFIG_BT_CTLR_SDC_SCAN_BUFFER_COUNT;
+#if defined(CONFIG_BT_OBSERVER)
+	cfg.scan_buffer_cfg.count = CONFIG_BT_CTLR_SDC_SCAN_BUFFER_COUNT;
 
-		required_memory =
-		sdc_cfg_set(SDC_DEFAULT_RESOURCE_CFG_TAG,
-			    SDC_CFG_TYPE_SCAN_BUFFER_CFG,
-			    &cfg);
-		if (required_memory < 0) {
-			return required_memory;
-		}
+	required_memory =
+	sdc_cfg_set(SDC_DEFAULT_RESOURCE_CFG_TAG,
+			SDC_CFG_TYPE_SCAN_BUFFER_CFG,
+			&cfg);
+	if (required_memory < 0) {
+		return required_memory;
 	}
+#endif /* CONFIG_BT_OBSERVER */
 
 	if (IS_ENABLED(CONFIG_BT_PER_ADV_SYNC)) {
 		cfg.periodic_sync_count.count = SDC_PERIODIC_ADV_SYNC_COUNT;
@@ -1308,87 +1358,85 @@ static int hci_driver_open(const struct device *dev, bt_hci_recv_t recv_func)
 	}
 #endif
 
-	err = sdc_enable(receive_signal_raise, sdc_mempool);
+	err = sdc_enable(hci_driver_receive_process, sdc_mempool);
 	if (err) {
 		MULTITHREADING_LOCK_RELEASE();
 		return err;
 	}
 
-	if (IS_ENABLED(CONFIG_BT_PER_ADV)) {
-		sdc_hci_cmd_vs_periodic_adv_event_length_set_t params = {
-			.event_length_us = CONFIG_BT_CTLR_SDC_PERIODIC_ADV_EVENT_LEN_DEFAULT
-		};
-		err = sdc_hci_cmd_vs_periodic_adv_event_length_set(&params);
-		if (err) {
-			MULTITHREADING_LOCK_RELEASE();
-			return -ENOTSUP;
-		}
+#if defined(CONFIG_BT_PER_ADV)
+	sdc_hci_cmd_vs_periodic_adv_event_length_set_t per_adv_length_params = {
+		.event_length_us = CONFIG_BT_CTLR_SDC_PERIODIC_ADV_EVENT_LEN_DEFAULT
+	};
+	err = sdc_hci_cmd_vs_periodic_adv_event_length_set(&per_adv_length_params);
+	if (err) {
+		MULTITHREADING_LOCK_RELEASE();
+		return -ENOTSUP;
+	}
+#endif /* CONFIG_BT_PER_ADV */
+
+#if defined(CONFIG_BT_CTLR_SDC_BIG_RESERVED_TIME_US)
+	sdc_hci_cmd_vs_big_reserved_time_set_t big_reserved_time_params = {
+		.reserved_time_us = CONFIG_BT_CTLR_SDC_BIG_RESERVED_TIME_US
+	};
+	err = sdc_hci_cmd_vs_big_reserved_time_set(&big_reserved_time_params);
+	if (err) {
+		MULTITHREADING_LOCK_RELEASE();
+		return -ENOTSUP;
+	}
+#endif /* BT_CTLR_SDC_BIG_RESERVED_TIME_US*/
+
+#if defined(CONFIG_BT_CTLR_CENTRAL_ISO)
+	sdc_hci_cmd_vs_cig_reserved_time_set_t cig_reserved_time_params = {
+		.reserved_time_us = CONFIG_BT_CTLR_SDC_CIG_RESERVED_TIME_US
+	};
+	err = sdc_hci_cmd_vs_cig_reserved_time_set(&cig_reserved_time_params);
+	if (err) {
+		MULTITHREADING_LOCK_RELEASE();
+		return -ENOTSUP;
 	}
 
-	if (IS_ENABLED(CONFIG_BT_ISO_BROADCASTER)) {
-		sdc_hci_cmd_vs_big_reserved_time_set_t params = {
-			.reserved_time_us = CONFIG_BT_CTLR_SDC_BIG_RESERVED_TIME_US
-		};
-		err = sdc_hci_cmd_vs_big_reserved_time_set(&params);
-		if (err) {
-			MULTITHREADING_LOCK_RELEASE();
-			return -ENOTSUP;
-		}
+	sdc_hci_cmd_vs_cis_subevent_length_set_t cis_subevent_length_params = {
+		.cis_subevent_length_us = CONFIG_BT_CTLR_SDC_CIS_SUBEVENT_LENGTH_US
+	};
+	err = sdc_hci_cmd_vs_cis_subevent_length_set(&cis_subevent_length_params);
+	if (err) {
+		MULTITHREADING_LOCK_RELEASE();
+		return -ENOTSUP;
+	}
+#endif /* CONFIG_BT_CTLR_CENTRAL_ISO */
+
+#if defined(CONFIG_BT_CONN)
+	sdc_hci_cmd_vs_event_length_set_t conn_event_length_params = {
+		.event_length_us = CONFIG_BT_CTLR_SDC_MAX_CONN_EVENT_LEN_DEFAULT
+	};
+	err = sdc_hci_cmd_vs_event_length_set(&conn_event_length_params);
+	if (err) {
+		MULTITHREADING_LOCK_RELEASE();
+		return -ENOTSUP;
 	}
 
-	if (IS_ENABLED(CONFIG_BT_CTLR_CONN_ISO)) {
-		sdc_hci_cmd_vs_cig_reserved_time_set_t params = {
-			.reserved_time_us = CONFIG_BT_CTLR_SDC_CIG_RESERVED_TIME_US
-		};
-		err = sdc_hci_cmd_vs_cig_reserved_time_set(&params);
-		if (err) {
-			MULTITHREADING_LOCK_RELEASE();
-			return -ENOTSUP;
-		}
+	sdc_hci_cmd_vs_conn_event_extend_t event_extend_params = {
+		.enable = IS_ENABLED(CONFIG_BT_CTLR_SDC_CONN_EVENT_EXTEND_DEFAULT)
+	};
+	err = sdc_hci_cmd_vs_conn_event_extend(&event_extend_params);
+	if (err) {
+		MULTITHREADING_LOCK_RELEASE();
+		return -ENOTSUP;
 	}
+#endif /* CONFIG_BT_CONN */
 
-	if (IS_ENABLED(CONFIG_BT_CTLR_CONN_ISO)) {
-		sdc_hci_cmd_vs_cis_subevent_length_set_t params = {
-			.cis_subevent_length_us = CONFIG_BT_CTLR_SDC_CIS_SUBEVENT_LENGTH_US
-		};
-		err = sdc_hci_cmd_vs_cis_subevent_length_set(&params);
-		if (err) {
-			MULTITHREADING_LOCK_RELEASE();
-			return -ENOTSUP;
-		}
+#if defined(CONFIG_BT_CENTRAL)
+	sdc_hci_cmd_vs_central_acl_event_spacing_set_t acl_event_spacing_params = {
+		.central_acl_event_spacing_us =
+			CONFIG_BT_CTLR_SDC_CENTRAL_ACL_EVENT_SPACING_DEFAULT
+	};
+	err = sdc_hci_cmd_vs_central_acl_event_spacing_set(&acl_event_spacing_params);
+	if (err) {
+		MULTITHREADING_LOCK_RELEASE();
+		return -ENOTSUP;
 	}
-
-	if (IS_ENABLED(CONFIG_BT_CONN)) {
-		sdc_hci_cmd_vs_event_length_set_t params = {
-			.event_length_us = CONFIG_BT_CTLR_SDC_MAX_CONN_EVENT_LEN_DEFAULT
-		};
-		err = sdc_hci_cmd_vs_event_length_set(&params);
-		if (err) {
-			MULTITHREADING_LOCK_RELEASE();
-			return -ENOTSUP;
-		}
-
-		sdc_hci_cmd_vs_conn_event_extend_t event_extend_params = {
-			.enable = IS_ENABLED(CONFIG_BT_CTLR_SDC_CONN_EVENT_EXTEND_DEFAULT)
-		};
-		err = sdc_hci_cmd_vs_conn_event_extend(&event_extend_params);
-		if (err) {
-			MULTITHREADING_LOCK_RELEASE();
-			return -ENOTSUP;
-		}
-	}
-
-	if (IS_ENABLED(CONFIG_BT_CENTRAL)) {
-		sdc_hci_cmd_vs_central_acl_event_spacing_set_t params = {
-			.central_acl_event_spacing_us =
-				CONFIG_BT_CTLR_SDC_CENTRAL_ACL_EVENT_SPACING_DEFAULT
-		};
-		err = sdc_hci_cmd_vs_central_acl_event_spacing_set(&params);
-		if (err) {
-			MULTITHREADING_LOCK_RELEASE();
-			return -ENOTSUP;
-		}
-	}
+#endif /* CONFIG_BT_CENTRAL */
 
 #if defined(CONFIG_BT_CTLR_MIN_VAL_OF_MAX_ACL_TX_PAYLOAD_DEFAULT)
 	if (CONFIG_BT_CTLR_MIN_VAL_OF_MAX_ACL_TX_PAYLOAD_DEFAULT != 27) {
@@ -1410,6 +1458,8 @@ static int hci_driver_open(const struct device *dev, bt_hci_recv_t recv_func)
 
 	driver_data->recv_func = recv_func;
 
+	bt_buf_rx_freed_cb_set(bt_buf_rx_freed_cb);
+
 	return 0;
 }
 
@@ -1419,6 +1469,10 @@ static int hci_driver_close(const struct device *dev)
 
 	if (IS_ENABLED(CONFIG_BT_CTLR_ECDH)) {
 		hci_ecdh_uninit();
+	}
+
+	if (IS_ENABLED(CONFIG_BT_CTLR_SDC_CS_MULTIPLE_ANTENNA_SUPPORT)) {
+		cs_antenna_switch_clear();
 	}
 
 	err = MULTITHREADING_LOCK_ACQUIRE();
@@ -1442,6 +1496,8 @@ static int hci_driver_close(const struct device *dev)
 
 	MULTITHREADING_LOCK_RELEASE();
 
+	bt_buf_rx_freed_cb_set(NULL);
+
 	return err;
 }
 
@@ -1463,6 +1519,9 @@ static int hci_driver_init(const struct device *dev)
 	int err = 0;
 
 	err = sdc_init(sdc_assertion_handler);
+	if (err) {
+		return err;
+	}
 
 	err = configure_supported_features();
 	if (err) {
@@ -1477,10 +1536,15 @@ static int hci_driver_init(const struct device *dev)
 	return err;
 }
 
+#if defined(CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL)
+BUILD_ASSERT(CONFIG_BT_LL_SOFTDEVICE_INIT_PRIORITY > CONFIG_MPSL_INIT_PRIORITY,
+			 "MPSL must be initialized before SoftDevice Controller");
+#endif /* CONFIG_MPSL_USE_EXTERNAL_CLOCK_CONTROL */
+
 #define BT_HCI_CONTROLLER_INIT(inst) \
 	static struct hci_driver_data data_##inst; \
 	DEVICE_DT_INST_DEFINE(inst, hci_driver_init, NULL, &data_##inst, NULL, POST_KERNEL, \
-			      CONFIG_KERNEL_INIT_PRIORITY_DEVICE, &hci_driver_api)
+			      CONFIG_BT_LL_SOFTDEVICE_INIT_PRIORITY, &hci_driver_api)
 
 /* Only a single instance is supported */
 BT_HCI_CONTROLLER_INIT(0)

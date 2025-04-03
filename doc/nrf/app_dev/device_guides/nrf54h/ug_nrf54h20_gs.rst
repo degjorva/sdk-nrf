@@ -7,8 +7,10 @@ Getting started with the nRF54H20 DK
    :local:
    :depth: 2
 
-This document gets you started with your nRF54H20 Development Kit (DK) using the |NCS|.
+This document gets you started with your nRF54H20 Development Kit (DK) using the |NCS| for the first time.
 It tells you how to install the :zephyr:code-sample:`sysbuild_hello_world` sample and perform a quick test of your DK.
+
+If you are migrating from an earlier version of the |NCS|, see :ref:`migration_guides`.
 
 .. _ug_nrf54h20_gs_requirements:
 
@@ -46,27 +48,8 @@ You also need the following:
 
 * `Git`_ or `Git for Windows`_ (on Linux and Mac, or Windows, respectively)
 * `curl`_
-* SEGGER J-Link |jlink_ver| and, on Windows, also the SEGGER USB Driver for J-Link from `SEGGER J-Link`_ |jlink_ver|
-
-   .. note::
-      To install the SEGGER USB Driver for J-Link on Windows, manually install J-Link |jlink_ver| from the command line using the ``-InstUSBDriver=1`` parameter:
-
-      1. Navigate to the download location of the J-Link executable and run one of the following commands:
-
-         * From the Command Prompt::
-
-            JLink_Windows_V794i_x86_64.exe -InstUSBDriver=1
-
-         * From PowerShell::
-
-            .\JLink_Windows_V794i_x86_64.exe -InstUSBDriver=1
-
-      #. Follow the on-screen instructions.
-      #. After installing, ensure the J-Link executable can be run from anywhere on your system:
-
-         * For Linux and MacOS, add it to the system path.
-         * For Windows, add it to the environment variables.
-
+* SEGGER J-Link |jlink_ver| and, on Windows, also the SEGGER USB Driver for J-Link from `SEGGER J-Link`_ |jlink_ver|.
+  For information on how to install the USB Driver, see the `nRF Util prerequisites`_ documentation.
 * The latest version of |VSC| for your operating system from the `Visual Studio Code download page`_
 * In |VSC|, the latest version of the `nRF Connect for VS Code Extension Pack`_
 * On Linux, the `nrf-udev`_ module with udev rules required to access USB ports on Nordic Semiconductor devices and program the firmware
@@ -102,7 +85,7 @@ To install the toolchain and the SDK using the Toolchain Manager app, complete t
 
    a. Open Toolchain Manager in nRF Connect for Desktop.
 
-      .. figure:: ../../../../nrf/installation/images/gs-assistant_tm.png
+      .. figure:: ../../../../nrf/images/gs-assistant_tm.png
          :alt: The Toolchain Manager window
 
          The Toolchain Manager window
@@ -136,7 +119,7 @@ To install the toolchain and the SDK using the Toolchain Manager app, complete t
          1. Restart the Toolchain Manager application.
          #. Click the dropdown menu for the installed nRF Connect SDK version.
 
-            .. figure:: ../../../../nrf/installation/images/gs-assistant_tm_dropdown.png
+            .. figure:: ../../../../nrf/images/gs-assistant_tm_dropdown.png
                :alt: The Toolchain Manager dropdown menu for the installed nRF Connect SDK version, cropped
 
                The Toolchain Manager dropdown menu options
@@ -156,42 +139,37 @@ Installing nRF Util and its commands
 
 Using the nRF54H20 DK with the |NCS| version |release| requires the following:
 
-* nRF Util version 7.13.0 or higher
-* nRF Util ``device`` version 2.7.10
-* nRF Util ``trace`` version 3.10.0
-* nRF Util ``suit`` version 0.9.0
+* nRF Util v7.13.0 or higher
+* nRF Util ``device`` command v2.7.16
+* nRF Util ``trace`` command v3.1.0
+* nRF Util ``suit`` command v0.9.0
 
-1. Download the nrfutil executable file from the `nRF Util development tool`_ product page.
-#. Add nRF Util to the system path on Linux and MacOS, or environment variables on Windows, to run it from anywhere on the system.
-   On Linux and MacOS, use one of the following options:
+If you have not already installed nRF Util as part of :ref:`nRF Connect SDK prerequisites <installing_vsc>`, complete the following steps to install it:
 
-   * Add nRF Util's directory to the system path.
-   * Move the file to a directory in the system path.
+1. Complete the steps listed on the `Installing nRF Util`_ page to install nRF Util.
+   Follow the default installation procedure from the web repository.
+#. Verify the version of the nRF Util installation on your machine:
 
-#. On MacOS and Linux, give ``nrfutil`` execute permissions by typing ``chmod +x nrfutil`` in a terminal or using a file browser.
-   This is typically a checkbox found under file properties.
-#. On MacOS, to run the nrfutil executable you need to allow it in the system settings.
-#. Verify the version of the nRF Util installation on your machine by running the following command::
+   a. Run the following command:
 
-      nrfutil --version
+      .. code-block::
 
-#. If your version is below 7.13.0, run the following command to update nRF Util::
+         nrfutil --version
 
-      nrfutil self-upgrade
+   b. If your version is below v7.13.0, run the following command to update the core module:
 
-   For more information, consult the `nRF Util`_ documentation.
+      .. code-block::
 
-#. Install the nRF Util ``device`` command version 2.7.10 as follows::
+         nrfutil self-upgrade
 
-      nrfutil install device=2.7.10 --force
+      For more information, consult the `Upgrading nRF Util core module`_ documentation.
 
-#. Install the nRF Util ``trace`` command version 3.10.0 as follows::
+#. Install the required versions of nRF Util commands, as listed above, using the command from `Installing specific versions of nRF Util commands`_.
+   For example, the following command installs the nRF Util ``device`` command version 2.7.16:
 
-      nrfutil install trace=3.10.0 --force
+   .. code-block::
 
-#. Install the nRF Util ``suit`` command version 0.9.0 as follows::
-
-      nrfutil install suit=0.9.0 --force
+      nrfutil install device=2.7.16 --force
 
 .. _ug_nrf54h20_gs_bringup:
 
@@ -233,7 +211,7 @@ After programming the BICR, program the nRF54H20 SoC with the :ref:`nRF54H20 SoC
 This bundle contains the precompiled firmware for the :ref:`Secure Domain <ug_nrf54h20_secure_domain>` and :ref:`System Controller <ug_nrf54h20_sys_ctrl>`.
 To program the nRF54H20 SoC binaries to the nRF54H20 DK, do the following:
 
-1. Download the `nRF54H20 SoC Binaries v0.8.0`_, compatible with the nRF54H20 DK v0.9.0 and later revisions.
+1. Download the `nRF54H20 SoC binaries v0.9.2`_, compatible with the nRF54H20 DK v0.9.0 and later revisions.
 
    .. note::
       On MacOS, ensure that the ZIP file is not unpacked automatically upon download.
@@ -288,6 +266,7 @@ If you have multiple Nordic Semiconductor devices, ensure that only the nRF54H20
 
    west flash
 
+Make sure you have the :ref:`nrfutil device <ug_nrf54h20_install_toolchain>` command installed for ``west flash`` to work with the nRF54H20 DK.
 This command builds and programs the sample automatically on both the application core and the Peripheral Processor (PPR) of the nRF54H20 SoC.
 
 .. include:: /includes/nRF54H20_erase_UICR.txt

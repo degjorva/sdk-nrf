@@ -62,7 +62,7 @@ def expected_metadata(size):
                     {'location': 1, 'sig_models': [0, 2], 'vendor_models': []}
                 ]
             },
-            'composition_hash': '0x587a2fb',
+            'composition_hash': 92775163,
             'encoded_metadata': f'0102030004000000{encoded_size}01fba287050100'
         },
         {
@@ -80,7 +80,7 @@ def expected_metadata(size):
                     {'location': 2, 'sig_models': [4097, 4099], 'vendor_models': []}
                 ]
             },
-            'composition_hash': '0x13f1a143',
+            'composition_hash': 334602563,
             'encoded_metadata': f'0102030004000000{encoded_size}0143a1f1130200'
         }
     ]
@@ -89,16 +89,18 @@ def expected_metadata(size):
 if __name__ == '__main__':
     comp_data_layout = sys.argv[1]
     bin_dir = sys.argv[2]
-    type = sys.argv[3]
+    fwid = sys.argv[3]
 
-    if type == "sysbuild":
-        zip_path = os.path.join(bin_dir, "dfu_application.zip")
-        binary_size = os.path.getsize(os.path.join(bin_dir, "metadata_extraction", "zephyr", "zephyr.signed.bin"))
-    else:
-        zip_path = os.path.join(bin_dir, "zephyr", "dfu_application.zip")
-        binary_size = os.path.getsize(os.path.join(bin_dir, "zephyr", "app_update.bin"))
+    zip_path = os.path.join(bin_dir, "dfu_application.zip")
+    binary_size = os.path.getsize(os.path.join(bin_dir, "metadata_extraction", "zephyr", "zephyr.signed.bin"))
 
     expected = expected_metadata(binary_size)
+
+    for comp in expected:
+        if fwid == "--fwid-custom":
+            comp["firmware_id"] = "59001234abcd"
+        elif fwid == "--fwid-mcuboot-version":
+            comp["firmware_id"] = "59000102030004000000"
 
     with ZipFile(zip_path) as zip_file:
         json_string = zip_file.read('ble_mesh_metadata.json').decode()

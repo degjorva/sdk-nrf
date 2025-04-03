@@ -11,10 +11,9 @@ Signature keys
 A signature key can be used by :ref:`bootloader` to validate the next image in the boot chain.
 Dedicated host tools like :doc:`mcuboot:imgtool` can be used to sign application update images.
 
-When you use |NSIB|, a private/public key pair is by default generated during the build when you are :ref:`ug_bootloader_adding_immutable_keys`.
+When you use MCUboot or :ref:`enable a bootloader chain through sysbuild <ug_bootloader_adding_sysbuild_upgradable_mcuboot>`, the default configuration uses keys that were generated once and are stored in the public MCUboot Git repository.
+When you use |NSIB|, a private/public key pair is by default generated during the build when you are :ref:`ug_bootloader_adding_sysbuild_immutable_keys`.
 You can use the methods described in the following sections to explicitly define how the key pair is to be generated.
-
-When you use MCUboot or you are :ref:`ug_bootloader_adding_upgradable_mcuboot`, MCUboot uses keys that were generated once and are stored in the public MCUboot Git repository by default.
 
 .. note::
     These key pairs should only be used during development.
@@ -139,7 +138,11 @@ You can add this feature to your own project and check its functionality as foll
 
 1. Generate two or more private keys for the application and extract a public key for each one (for example, using :ref:`OpenSSL <ug_fw_update_keys_openssl>`).
 
-#. Compile the application and bootloader with the relevant configurations, using only absolute paths:
+#. Compile the application and bootloader with the following configuration options set:
+
+   .. note::
+
+      Use only absolute paths for :kconfig:option:`CONFIG_SB_SIGNING_KEY_FILE` and :kconfig:option:`CONFIG_SB_PUBLIC_KEY_FILES`.
 
    .. code-block:: console
 
@@ -151,7 +154,7 @@ You can add this feature to your own project and check its functionality as foll
 
       The public key associated with the original private signing key must not be included in the public key list.
 
-#. Program the application to the target development kit and :ref:`check its console output <ug_bootloader_testing>`.
+#. Program the application to the target development kit and check its console output.
    With the first firmware version, ``priv_a.pem`` and ``pub_a.pem`` are used for signing and validating the image.
 
    .. code-block:: console
@@ -211,14 +214,11 @@ To test that the bootloader no longer boots images signed with the earlier keys,
       CONFIG_SB_SIGNING_KEY_FILE="/path/to/priv_b.pem"
       CONFIG_FW_INFO_FIRMWARE_VERSION=3
 
-#. To facilitate testing, use nrfjprog to program this image directly into a slot:
+#. To facilitate testing, use `nRF Util`_ to program this image directly into a slot:
 
    .. code-block:: console
 
-      nrfjprog -f nRF52 -r --verify --program build/zephyr/signed_by_b0_s0_image.hex --sectorerase
-
-   .. note::
-      |nrfjprog_deprecation_note|
+      nrfutil device program --x-family nrf52 --options chip_erase_mode=ERASE_RANGES_TOUCHED_BY_FIRMWARE,verify=VERIFY_HASH,reset=RESET_SOFT --firmware build/zephyr/signed_by_b0_s0_image.hex
 
 #. Observe the bootloader skipping the invalid image and booting the valid image in the other slot:
 

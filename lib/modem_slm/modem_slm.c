@@ -9,11 +9,13 @@
 #include <zephyr/shell/shell.h>
 #include <hal/nrf_gpio.h>
 #include <modem/modem_slm.h>
+#include <zephyr/shell/shell_uart.h>
+#include <zephyr/shell/shell_rtt.h>
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(mdm_slm, CONFIG_MODEM_SLM_LOG_LEVEL);
 
-BUILD_ASSERT(CONFIG_MODEM_SLM_WAKEUP_PIN >= 0, "Wake up pin not configured");
+BUILD_ASSERT(CONFIG_MODEM_SLM_POWER_PIN >= 0, "Power pin not configured");
 
 #define UART_RX_BUF_NUM         2
 #define UART_RX_LEN             CONFIG_MODEM_SLM_DMA_MAXLEN
@@ -47,25 +49,79 @@ static const struct device *gpio_dev = DEVICE_DT_GET(DT_CHOSEN(ncs_slm_gpio));
 #else
 static const struct device *gpio_dev = DEVICE_DT_GET(DT_NODELABEL(gpio0));
 #endif
-static struct k_work_delayable gpio_wakeup_work;
+static struct k_work_delayable gpio_power_pin_disable_work;
 static slm_ind_handler_t ind_handler;
 
 #if defined(CONFIG_MODEM_SLM_SHELL)
-static struct shell *global_shell;
+static const struct shell *global_shell;
 static const char at_usage_str[] = "Usage: slm <at_command>";
 #endif
 
 /* global functions defined in different files */
 void slm_monitor_dispatch(const char *notif);
 
-static void gpio_wakeup_wk(struct k_work *work)
+#if (CONFIG_MODEM_SLM_INDICATE_PIN >= 0)
+static bool indicate_pin_enabled;
+
+static void gpio_cb_func(const struct device *dev, struct gpio_callback *gpio_cb, uint32_t pins);
+static struct gpio_callback gpio_cb;
+#endif
+
+static int indicate_pin_enable(void)
+{
+#if (CONFIG_MODEM_SLM_INDICATE_PIN >= 0)
+	int err = 0;
+
+	if (!indicate_pin_enabled) {
+		err = gpio_pin_configure(gpio_dev, CONFIG_MODEM_SLM_INDICATE_PIN,
+					 GPIO_INPUT | GPIO_PULL_UP | GPIO_ACTIVE_LOW);
+		if (err) {
+			LOG_ERR("GPIO config error: %d", err);
+			return err;
+		}
+
+		gpio_init_callback(&gpio_cb, gpio_cb_func, BIT(CONFIG_MODEM_SLM_INDICATE_PIN));
+		err = gpio_add_callback(gpio_dev, &gpio_cb);
+		if (err) {
+			LOG_WRN("GPIO add callback error: %d", err);
+		}
+		err = gpio_pin_interrupt_configure(gpio_dev, CONFIG_MODEM_SLM_INDICATE_PIN,
+						   GPIO_INT_LEVEL_LOW);
+		if (err) {
+			LOG_WRN("GPIO interrupt configure error: %d", err);
+		}
+		indicate_pin_enabled = true;
+		LOG_DBG("Indicate pin enabled");
+	}
+#endif
+	return 0;
+}
+
+static void indicate_pin_disable(void)
+{
+#if (CONFIG_MODEM_SLM_INDICATE_PIN >= 0)
+	if (indicate_pin_enabled) {
+		gpio_remove_callback(gpio_dev, &gpio_cb);
+		gpio_pin_interrupt_configure(gpio_dev, CONFIG_MODEM_SLM_INDICATE_PIN,
+					     GPIO_INT_DISABLE);
+		gpio_pin_configure(gpio_dev, CONFIG_MODEM_SLM_INDICATE_PIN, GPIO_DISCONNECTED);
+		indicate_pin_enabled = false;
+		LOG_DBG("Indicate pin disabled");
+	}
+#endif
+}
+
+static void gpio_power_pin_disable_work_fn(struct k_work *work)
 {
 	ARG_UNUSED(work);
 
-	if (gpio_pin_set(gpio_dev, CONFIG_MODEM_SLM_WAKEUP_PIN, 0) != 0) {
+	if (gpio_pin_set(gpio_dev, CONFIG_MODEM_SLM_POWER_PIN, 0) != 0) {
 		LOG_WRN("GPIO set error");
 	}
-	LOG_DBG("Stop wake-up");
+	/* When SLM is woken up, indicate pin must be enabled */
+	(void)indicate_pin_enable();
+
+	LOG_INF("Disable power pin");
 }
 
 static void slm_data_wk(struct k_work *work)
@@ -318,14 +374,19 @@ static void gpio_cb_func(const struct device *dev, struct gpio_callback *gpio_cb
 		return;
 	}
 
-	if (k_work_delayable_is_pending(&gpio_wakeup_work)) {
-		(void)k_work_cancel_delayable(&gpio_wakeup_work);
-		(void)gpio_pin_set(gpio_dev, CONFIG_MODEM_SLM_WAKEUP_PIN, 0);
+	if (k_work_delayable_is_pending(&gpio_power_pin_disable_work)) {
+		(void)k_work_cancel_delayable(&gpio_power_pin_disable_work);
+		(void)gpio_pin_set(gpio_dev, CONFIG_MODEM_SLM_POWER_PIN, 0);
+	} else {
+		/* Disable indicate pin so that callbacks doesn't keep on coming. */
+		indicate_pin_disable();
 	}
 
 	LOG_INF("Remote indication");
 	if (ind_handler) {
 		ind_handler();
+	} else {
+		LOG_WRN("Indicate PIN configured but slm_ind_handler_t not defined");
 	}
 }
 #endif  /* CONFIG_MODEM_SLM_INDICATE_PIN */
@@ -339,34 +400,16 @@ static int gpio_init(void)
 		return -ENODEV;
 	}
 
-	err = gpio_pin_configure(gpio_dev, CONFIG_MODEM_SLM_WAKEUP_PIN,
+	err = gpio_pin_configure(gpio_dev, CONFIG_MODEM_SLM_POWER_PIN,
 				 GPIO_OUTPUT_INACTIVE | GPIO_ACTIVE_LOW);
 	if (err) {
 		LOG_ERR("GPIO config error: %d", err);
 		return err;
 	}
 
-#if (CONFIG_MODEM_SLM_INDICATE_PIN >= 0)
-	err = gpio_pin_configure(gpio_dev, CONFIG_MODEM_SLM_INDICATE_PIN,
-				 GPIO_INPUT | GPIO_PULL_UP | GPIO_ACTIVE_LOW);
-	if (err) {
-		LOG_ERR("GPIO config error: %d", err);
-		return err;
-	}
+	err = indicate_pin_enable();
 
-	gpio_init_callback(&gpio_cb, gpio_cb_func, BIT(CONFIG_MODEM_SLM_INDICATE_PIN));
-	err = gpio_add_callback(gpio_dev, &gpio_cb);
-	if (err) {
-		LOG_WRN("GPIO add callback error: %d", err);
-	}
-	err = gpio_pin_interrupt_configure(gpio_dev, CONFIG_MODEM_SLM_INDICATE_PIN,
-					   GPIO_INT_LEVEL_LOW);
-	if (err) {
-		LOG_WRN("GPIO enable callback error: %d", err);
-	}
-#endif
-
-	return 0;
+	return err;
 }
 
 int modem_slm_init(slm_data_handler_t handler)
@@ -394,10 +437,16 @@ int modem_slm_init(slm_data_handler_t handler)
 		return -EFAULT;
 	}
 
-	k_work_init_delayable(&gpio_wakeup_work, gpio_wakeup_wk);
+	k_work_init_delayable(&gpio_power_pin_disable_work, gpio_power_pin_disable_work_fn);
 	k_work_init(&slm_data_work, slm_data_wk);
 	k_work_init_delayable(&uart_recovery_work, uart_recovery_wk);
 
+	/* Initialize shell pointer so it's available for printing in callbacks */
+#if defined(CONFIG_SHELL_BACKEND_SERIAL)
+	global_shell = shell_backend_uart_get_ptr();
+#elif defined(CONFIG_SHELL_BACKEND_RTT)
+	global_shell = shell_backend_rtt_get_ptr();
+#endif
 	return 0;
 }
 
@@ -406,12 +455,9 @@ int modem_slm_uninit(void)
 	uart_rx_disable(uart_dev);
 	k_sleep(K_MSEC(10));
 
-	gpio_pin_configure(gpio_dev, CONFIG_MODEM_SLM_WAKEUP_PIN, GPIO_DISCONNECTED);
-#if (CONFIG_MODEM_SLM_INDICATE_PIN >= 0)
-	gpio_remove_callback(gpio_dev, &gpio_cb);
-	gpio_pin_interrupt_configure(gpio_dev, CONFIG_MODEM_SLM_INDICATE_PIN, GPIO_INT_DISABLE);
-	gpio_pin_configure(gpio_dev, CONFIG_MODEM_SLM_INDICATE_PIN, GPIO_DISCONNECTED);
-#endif
+	gpio_pin_configure(gpio_dev, CONFIG_MODEM_SLM_POWER_PIN, GPIO_DISCONNECTED);
+
+	indicate_pin_disable();
 
 	data_handler = NULL;
 	ind_handler = NULL;
@@ -428,7 +474,7 @@ int modem_slm_register_ind(slm_ind_handler_t handler, bool wakeup)
 	if (wakeup) {
 		/*
 		 * Due to errata 4, Always configure PIN_CNF[n].INPUT before PIN_CNF[n].SENSE.
-		 * At this moment WAKEUP_PIN has already been configured as INPUT at init_gpio().
+		 * At this moment indicate pin has already been configured as INPUT at init_gpio().
 		 */
 		nrf_gpio_cfg_sense_set(CONFIG_MODEM_SLM_INDICATE_PIN, NRF_GPIO_PIN_SENSE_LOW);
 	}
@@ -439,21 +485,23 @@ int modem_slm_register_ind(slm_ind_handler_t handler, bool wakeup)
 #endif
 }
 
-int modem_slm_wake_up(void)
+int modem_slm_power_pin_toggle(void)
 {
 	int err;
 
-	if (k_work_delayable_is_pending(&gpio_wakeup_work)) {
+	if (k_work_delayable_is_pending(&gpio_power_pin_disable_work)) {
 		return 0;
 	}
 
-	LOG_INF("Start wake-up");
+	LOG_INF("Enable power pin");
 
-	err = gpio_pin_set(gpio_dev, CONFIG_MODEM_SLM_WAKEUP_PIN, 1);
+	err = gpio_pin_set(gpio_dev, CONFIG_MODEM_SLM_POWER_PIN, 1);
 	if (err) {
 		LOG_ERR("GPIO set error: %d", err);
 	} else {
-		k_work_reschedule(&gpio_wakeup_work, K_MSEC(CONFIG_MODEM_SLM_WAKEUP_TIME));
+		k_work_reschedule(
+			&gpio_power_pin_disable_work,
+			K_MSEC(CONFIG_MODEM_SLM_POWER_PIN_TIME));
 	}
 
 	return 0;
@@ -476,6 +524,11 @@ void modem_slm_reset_uart(void)
 int modem_slm_send_cmd(const char *const command, uint32_t timeout)
 {
 	int ret;
+
+	/* Enable indicate pin when command is sent. This should not be needed but is made
+	 * currently to make sure it wouldn't be disabled forever.
+	 */
+	(void)indicate_pin_enable();
 
 	slm_at_state = AT_CMD_PENDING;
 	ret = uart_send(command, strlen(command));
@@ -515,8 +568,6 @@ int modem_slm_send_data(const uint8_t *const data, size_t datalen)
 
 int modem_slm_shell(const struct shell *shell, size_t argc, char **argv)
 {
-	global_shell = (struct shell *)shell;
-
 	if (argc < 2) {
 		shell_print(shell, "%s", at_usage_str);
 		return 0;
@@ -525,6 +576,26 @@ int modem_slm_shell(const struct shell *shell, size_t argc, char **argv)
 	return modem_slm_send_cmd((char *)argv[1], 0);
 }
 
-SHELL_CMD_REGISTER(slm, NULL, "SLM Shell", modem_slm_shell);
+int modem_slm_shell_slmsh_powerpin(const struct shell *shell, size_t argc, char **argv)
+{
+	int err;
+
+	err = modem_slm_power_pin_toggle();
+	if (err) {
+		LOG_ERR("Failed to toggle power pin");
+	}
+	return 0;
+}
+
+SHELL_CMD_REGISTER(slm, NULL, "Send AT commands to SLM device", modem_slm_shell);
+
+SHELL_STATIC_SUBCMD_SET_CREATE(
+	sub_slmsh,
+	SHELL_CMD(powerpin, NULL, "Toggle power pin configured with CONFIG_MODEM_SLM_POWER_PIN",
+		  modem_slm_shell_slmsh_powerpin),
+	SHELL_SUBCMD_SET_END
+);
+
+SHELL_CMD_REGISTER(slmsh, &sub_slmsh, "Commands handled in SLM shell device", NULL);
 
 #endif /* CONFIG_MODEM_SLM_SHELL */

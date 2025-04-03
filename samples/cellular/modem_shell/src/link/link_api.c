@@ -4,6 +4,13 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+
+#ifdef _POSIX_C_SOURCE
+#undef _POSIX_C_SOURCE
+#endif
+/* Define _POSIX_C_SOURCE before including <string.h> in order to use `strtok_r`. */
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +21,7 @@
 #include <zephyr/shell/shell.h>
 
 #include <modem/modem_info.h>
+#include <modem/pdn.h>
 
 #include <zephyr/posix/arpa/inet.h>
 #include <zephyr/net/net_ip.h>
@@ -39,14 +47,6 @@ extern struct k_mutex mosh_at_resp_buf_mutex;
 #define AT_CMD_PDP_CONTEXTS_READ_PDP_TYPE_INDEX 2
 #define AT_CMD_PDP_CONTEXTS_READ_APN_INDEX 3
 #define AT_CMD_PDP_CONTEXTS_READ_PDP_ADDR_INDEX 4
-
-#define AT_CMD_PDP_CONTEXT_READ_INFO \
-	"AT+CGCONTRDP=%d" /* Use sprintf to add CID into command */
-#define AT_CMD_PDP_CONTEXT_READ_INFO_PARAM_COUNT 20
-#define AT_CMD_PDP_CONTEXT_READ_INFO_CID_INDEX 1
-#define AT_CMD_PDP_CONTEXT_READ_INFO_DNS_ADDR_PRIMARY_INDEX 6
-#define AT_CMD_PDP_CONTEXT_READ_INFO_DNS_ADDR_SECONDARY_INDEX 7
-#define AT_CMD_PDP_CONTEXT_READ_INFO_MTU_INDEX 12
 
 #define AT_CMD_PDP_CONTEXT_READ_RSP_DELIM "\r\n"
 
@@ -295,7 +295,9 @@ static void link_api_modem_operator_info_read_for_shell(void)
 	int ret = link_api_xmonitor_read(&xmonitor_resp);
 
 	if (ret) {
-		mosh_error("link_api_xmonitor_read failed, result: ret %d", ret);
+		/* Reading the information fails if modem is no longer registered, but
+		 * don't want to print an error in this case.
+		 */
 		return;
 	}
 
@@ -348,137 +350,15 @@ static void link_api_modem_operator_info_read_for_shell(void)
 
 static int link_api_pdp_context_dynamic_params_get(struct pdp_context_info *populated_info)
 {
-	int ret = 0;
-	struct at_parser parser;
-	size_t param_str_len;
+	struct pdn_dynamic_info pdn_dynamic_info;
+	const int ret = pdn_dynamic_info_get(populated_info->cid, &pdn_dynamic_info);
 
-	/* Cannot use global mosh_at_resp_buf because this used from link_api_pdp_contexts_read()
-	 * where global mosh_at_resp_buf is already used
-	 */
-	char cgcontrdp_at_rsp_buf[512];
-
-	char *at_ptr;
-	char *tmp_ptr;
-	int lines = 0;
-	int iterator = 0;
-	char dns_addr_str[AT_CMD_PDP_CONTEXT_READ_IP_ADDR_STR_MAX_LEN];
-
-	char at_cmd_pdp_context_read_info_cmd_str[15];
-
-	int family;
-	struct in_addr *addr;
-	struct in6_addr *addr6;
-
-	at_ptr = cgcontrdp_at_rsp_buf;
-	tmp_ptr = cgcontrdp_at_rsp_buf;
-
-	sprintf(at_cmd_pdp_context_read_info_cmd_str,
-		AT_CMD_PDP_CONTEXT_READ_INFO, populated_info->cid);
-	ret = nrf_modem_at_cmd(cgcontrdp_at_rsp_buf, sizeof(cgcontrdp_at_rsp_buf), "%s",
-			       at_cmd_pdp_context_read_info_cmd_str);
-	if (ret) {
-		mosh_error(
-			"nrf_modem_at_cmd returned err: %d for %s",
-			ret,
-			at_cmd_pdp_context_read_info_cmd_str);
-		return ret;
-	}
-
-	/* Check how many rows of info do we have */
-	while (strncmp(tmp_ptr, "OK", 2) &&
-	       (tmp_ptr = strstr(tmp_ptr, AT_CMD_PDP_CONTEXT_READ_RSP_DELIM)) != NULL) {
-		tmp_ptr += 2;
-		lines++;
-	}
-
-	/* Parse the response */
-	ret = at_parser_init(&parser, at_ptr);
-	if (ret) {
-		mosh_error("Could not init AT parser for %s, error: %d\n",
-			   at_cmd_pdp_context_read_info_cmd_str, ret);
-		return ret;
-	}
-
-parse:
-	/* Read primary DNS address */
-	param_str_len = sizeof(dns_addr_str);
-	ret = at_parser_string_get(
-		&parser,
-		AT_CMD_PDP_CONTEXT_READ_INFO_DNS_ADDR_PRIMARY_INDEX,
-		dns_addr_str, &param_str_len);
-	if (ret) {
-		mosh_error(
-			"Could not parse dns str for cid %d, err: %d",
-			populated_info->cid, ret);
-		goto clean_exit;
-	}
-	dns_addr_str[param_str_len] = '\0';
-
-	family = net_utils_sa_family_from_ip_string(dns_addr_str);
-
-	if (family == AF_INET) {
-		addr = &(populated_info->dns_addr4_primary);
-		(void)inet_pton(AF_INET, dns_addr_str, addr);
-	} else if (family == AF_INET6) {
-		addr6 = &(populated_info->dns_addr6_primary);
-		(void)inet_pton(AF_INET6, dns_addr_str, addr6);
-	}
-
-	/* Read secondary DNS address */
-	param_str_len = sizeof(dns_addr_str);
-
-	ret = at_parser_string_get(
-		&parser,
-		AT_CMD_PDP_CONTEXT_READ_INFO_DNS_ADDR_SECONDARY_INDEX,
-		dns_addr_str, &param_str_len);
-	if (ret) {
-		mosh_error("Could not parse dns str, err: %d", ret);
-		goto clean_exit;
-	}
-	dns_addr_str[param_str_len] = '\0';
-
-	family = net_utils_sa_family_from_ip_string(dns_addr_str);
-
-	if (family == AF_INET) {
-		addr = &(populated_info->dns_addr4_secondary);
-		(void)inet_pton(AF_INET, dns_addr_str, addr);
-	} else if (family == AF_INET6) {
-		addr6 = &(populated_info->dns_addr6_secondary);
-		(void)inet_pton(AF_INET6, dns_addr_str, addr6);
-	}
-
-	/* Read link MTU if exists:
-	 * AT command spec:
-	 * Note: If the PDN connection has dual stack capabilities, at least one pair of
-	 * lines with information is returned per <cid>: First one line with the IPv4
-	 * parameters followed by one line with the IPv6 parameters.
-	 */
-	if (iterator == 1) {
-		ret = at_parser_num_get(&parser, AT_CMD_PDP_CONTEXT_READ_INFO_MTU_INDEX,
-					&(populated_info->ipv6_mtu));
-		if (ret) {
-			/* Don't care if it fails */
-			ret = 0;
-			populated_info->ipv6_mtu = 0;
-		}
-	} else {
-		ret = at_parser_num_get(&parser, AT_CMD_PDP_CONTEXT_READ_INFO_MTU_INDEX,
-					&(populated_info->ipv4_mtu));
-		if (ret) {
-			/* Don't care if it fails */
-			ret = 0;
-			populated_info->ipv4_mtu = 0;
-		}
-	}
-
-	if (at_parser_cmd_next(&parser) == 0) {
-		iterator++;
-		if (iterator < lines) {
-			goto parse;
-		}
-	}
-
-clean_exit:
+	populated_info->ipv4_mtu = pdn_dynamic_info.ipv4_mtu;
+	populated_info->ipv6_mtu = pdn_dynamic_info.ipv6_mtu;
+	populated_info->dns_addr4_primary = pdn_dynamic_info.dns_addr4_primary;
+	populated_info->dns_addr4_secondary = pdn_dynamic_info.dns_addr4_secondary;
+	populated_info->dns_addr6_primary = pdn_dynamic_info.dns_addr6_primary;
+	populated_info->dns_addr6_secondary = pdn_dynamic_info.dns_addr6_secondary;
 	return ret;
 }
 
@@ -497,7 +377,7 @@ int link_api_pdp_contexts_read(struct pdp_context_info_array *pdp_info)
 	struct pdp_context_info *populated_info;
 
 	char ip_addr_str[AT_CMD_PDP_CONTEXT_READ_IP_ADDR_STR_MAX_LEN];
-	char *ip_address1, *ip_address2;
+	char *ip_address1, *ip_address2, *save_ip_addr_str;
 	int family;
 	struct in_addr *addr4;
 	struct in6_addr *addr6;
@@ -525,6 +405,10 @@ int link_api_pdp_contexts_read(struct pdp_context_info_array *pdp_info)
 	/* Allocate array of PDP info accordingly */
 	pdp_info->array = calloc(pdp_cnt, sizeof(struct pdp_context_info));
 	pdp_info->size = pdp_cnt;
+
+	if (pdp_cnt == 0) {
+		goto clean_exit;
+	}
 
 	/* Parse the response */
 	ret = at_parser_init(&parser, at_ptr);
@@ -599,10 +483,10 @@ parse:
 	/* Parse IP addresses from space delimited string. */
 
 	/* Get 1st 2 IP addresses from a CGDCONT string.
-	 * Notice that ip_addr_str is slightly modified by strtok()
+	 * Notice that ip_addr_str is modified by strtok_r()
 	 */
-	ip_address1 = strtok(ip_addr_str, " ");
-	ip_address2 = strtok(NULL, " ");
+	ip_address1 = strtok_r(ip_addr_str, " ", &save_ip_addr_str);
+	ip_address2 = strtok_r(NULL, " ", &save_ip_addr_str);
 
 	if (ip_address1 != NULL) {
 		family = net_utils_sa_family_from_ip_string(ip_address1);

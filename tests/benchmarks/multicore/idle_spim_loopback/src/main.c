@@ -15,10 +15,13 @@ LOG_MODULE_REGISTER(idle_spim_loopback, LOG_LEVEL_INF);
 #include <zephyr/devicetree/clocks.h>
 #include <zephyr/drivers/clock_control/nrf_clock_control.h>
 
-#define	DELTA			(1)
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led), gpios);
 
-#define SPI_MODE_DEFAULT (SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_LINES_SINGLE \
-				| SPI_TRANSFER_MSB | SPI_MODE_CPHA | SPI_MODE_CPOL)
+#define DELTA (1)
+
+#define SPI_MODE_DEFAULT                                                                           \
+	(SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_LINES_SINGLE | SPI_TRANSFER_MSB |              \
+	 SPI_MODE_CPHA | SPI_MODE_CPOL)
 
 #if defined(CONFIG_TEST_SPI_HOLD_ON_CS) && defined(CONFIG_TEST_SPI_LOCK_ON)
 #define SPI_MODE (SPI_MODE_DEFAULT | SPI_HOLD_ON_CS | SPI_LOCK_ON)
@@ -34,14 +37,13 @@ static struct spi_dt_spec spim_spec = SPI_DT_SPEC_GET(DT_NODELABEL(dut_spi_dt), 
 
 static const struct gpio_dt_spec pin_in = GPIO_DT_SPEC_GET(DT_PATH(zephyr_user), test_gpios);
 
-#define MEMORY_SECTION(node)                                                           \
-	COND_CODE_1(DT_NODE_HAS_PROP(node, memory_regions),                                \
-		    (__attribute__((__section__(                                               \
+#define MEMORY_SECTION(node)                                                                       \
+	COND_CODE_1(DT_NODE_HAS_PROP(node, memory_regions),                                        \
+		    (__attribute__((__section__(                                                   \
 			    LINKER_DT_NODE_REGION_NAME(DT_PHANDLE(node, memory_regions)))))),      \
 		    ())
 
-static uint8_t spim_buffer[2 * CONFIG_DATA_FIELD]
-	MEMORY_SECTION(DT_BUS(DT_NODELABEL(dut_spi_dt)));
+static uint8_t spim_buffer[2 * CONFIG_DATA_FIELD] MEMORY_SECTION(DT_BUS(DT_NODELABEL(dut_spi_dt)));
 
 /* Variables used to count edges on SPI CS */
 static struct gpio_callback gpio_input_cb_data;
@@ -52,35 +54,29 @@ static struct k_timer my_timer;
 static bool timer_expired;
 
 #if defined(CONFIG_CLOCK_CONTROL)
-const struct nrf_clock_spec clk_spec_global_hsfll = {
-	.frequency = MHZ(CONFIG_GLOBAL_DOMAIN_CLOCK_FREQUENCY_MHZ)
-};
+const uint32_t freq[] = {320, 256, 128, 64};
 
 /*
  * Set Global Domain frequency (HSFLL120)
- * based on: CONFIG_GLOBAL_DOMAIN_CLOCK_FREQUENCY_MHZ
  */
-void set_global_domain_frequency(void)
+void set_global_domain_frequency(uint32_t freq)
 {
 	int err;
 	int res;
 	struct onoff_client cli;
 	const struct device *hsfll_dev = DEVICE_DT_GET(DT_NODELABEL(hsfll120));
+	const struct nrf_clock_spec clk_spec_global_hsfll = {.frequency = MHZ(freq)};
 
 	printk("Requested frequency [Hz]: %d\n", clk_spec_global_hsfll.frequency);
 	sys_notify_init_spinwait(&cli.notify);
 	err = nrf_clock_control_request(hsfll_dev, &clk_spec_global_hsfll, &cli);
-	printk("Return code: %d\n", err);
-	__ASSERT_NO_MSG(err < 3);
-	__ASSERT_NO_MSG(err >= 0);
+	__ASSERT((err >= 0 && err < 3), "Wrong nrf_clock_control_request return code");
 	do {
 		err = sys_notify_fetch_result(&cli.notify, &res);
 		k_yield();
 	} while (err == -EAGAIN);
-	printk("Clock control request return value: %d\n", err);
-	printk("Clock control request response code: %d\n", res);
-	__ASSERT_NO_MSG(err == 0);
-	__ASSERT_NO_MSG(res == 0);
+	__ASSERT(err == 0, "Wrong clock control request return code");
+	__ASSERT(res == 0, "Wrong clock control request response");
 }
 #endif /* CONFIG_CLOCK_CONTROL */
 
@@ -109,32 +105,27 @@ int main(void)
 {
 	int ret;
 	int counter = 0;
+	uint8_t switch_flag;
 	uint8_t acc = 0;
 	bool test_pass;
+	int test_repetitions = 3;
 
 	/* SPI buffer sets */
-	struct spi_buf tx_spi_buf = {
-		.buf = &spim_buffer[0],
-		.len = CONFIG_DATA_FIELD
-	};
-	struct spi_buf_set tx_spi_buf_set = {
-		.buffers = &tx_spi_buf,
-		.count = 1
-	};
+	struct spi_buf tx_spi_buf = {.buf = &spim_buffer[0], .len = CONFIG_DATA_FIELD};
+	struct spi_buf_set tx_spi_buf_set = {.buffers = &tx_spi_buf, .count = 1};
 
-	struct spi_buf rx_spi_buf = {
-		.buf = &spim_buffer[CONFIG_DATA_FIELD],
-		.len = CONFIG_DATA_FIELD
-	};
-	struct spi_buf_set rx_spi_buf_set = {
-		.buffers = &rx_spi_buf,
-		.count = 1
-	};
+	struct spi_buf rx_spi_buf = {.buf = &spim_buffer[CONFIG_DATA_FIELD],
+				     .len = CONFIG_DATA_FIELD};
+	struct spi_buf_set rx_spi_buf_set = {.buffers = &rx_spi_buf, .count = 1};
+
+	ret = gpio_is_ready_dt(&led);
+	__ASSERT(ret, "Error: GPIO Device not ready");
+
+	ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+	__ASSERT(ret == 0, "Could not configure led GPIO");
 
 #if defined(CONFIG_CLOCK_CONTROL)
-	k_msleep(1000);
-	set_global_domain_frequency();
-	k_msleep(100);
+	set_global_domain_frequency(CONFIG_GLOBAL_DOMAIN_CLOCK_FREQUENCY_MHZ);
 #endif
 
 	LOG_INF("Multicore idle_spi_loopback test on %s", CONFIG_BOARD_TARGET);
@@ -176,8 +167,15 @@ int main(void)
 
 	k_timer_init(&my_timer, my_timer_handler, NULL);
 
+#if defined(CONFIG_COVERAGE)
+	printk("Coverage analysis enabled\n");
+	while (test_repetitions--)
+#else
 	/* Run test forever. */
-	while (1) {
+	while (test_repetitions)
+#endif
+	{
+		switch_flag = 1;
 		test_pass = true;
 		timer_expired = false;
 
@@ -205,7 +203,7 @@ int main(void)
 		while (!timer_expired) {
 			/* Generate pseudo random tx_data for current test. */
 			for (int i = 0; i < CONFIG_DATA_FIELD; i++) {
-				*((uint8_t *) tx_spi_buf.buf + i) = acc;
+				*((uint8_t *)tx_spi_buf.buf + i) = acc;
 				acc += DELTA;
 			}
 
@@ -214,16 +212,22 @@ int main(void)
 			if (ret != 0) {
 				LOG_ERR("spi_transceive_dt, err: %d", ret);
 			}
+#if defined(CONFIG_GLOBAL_DOMAIN_CLOCK_FREQUENCY_SWITCHING)
+			if (switch_flag) {
+				set_global_domain_frequency(freq[counter % ARRAY_SIZE(freq)]);
+				switch_flag = 0;
+			}
+#endif
 			__ASSERT(ret == 0, "Error: spi_transceive_dt, err: %d\n", ret);
 
 			/* Check if the received data is consistent with the data sent. */
 			for (int i = 0; i < CONFIG_DATA_FIELD; i++) {
-				uint8_t received = *((uint8_t *) rx_spi_buf.buf + i);
-				uint8_t transmitted = *((uint8_t *) tx_spi_buf.buf + i);
+				uint8_t received = *((uint8_t *)rx_spi_buf.buf + i);
+				uint8_t transmitted = *((uint8_t *)tx_spi_buf.buf + i);
 
 				if (received != transmitted) {
-					LOG_ERR("FAIL: rx[%d] = %d, expected %d",
-						i, received, transmitted);
+					LOG_ERR("FAIL: rx[%d] = %d, expected %d", i, received,
+						transmitted);
 					test_pass = false;
 					__ASSERT(false, "Run %d - FAILED\n", counter);
 				}
@@ -246,8 +250,8 @@ int main(void)
 			}
 
 			if (temp_pin_value != expected_pin_value) {
-				LOG_ERR("SPI CS signal is %d, while expected is %d",
-					temp_pin_value, expected_pin_value);
+				LOG_ERR("SPI CS signal is %d, while expected is %d", temp_pin_value,
+					expected_pin_value);
 			}
 			__ASSERT_NO_MSG(temp_pin_value == expected_pin_value);
 #endif
@@ -269,8 +273,8 @@ int main(void)
 		}
 		__ASSERT_NO_MSG(ret == 0);
 
-		ret = gpio_pin_interrupt_configure_dt(&pin_in, GPIO_INT_DISABLE |
-				GPIO_INT_LEVELS_LOGICAL | GPIO_INT_HIGH_1);
+		ret = gpio_pin_interrupt_configure_dt(
+			&pin_in, GPIO_INT_DISABLE | GPIO_INT_LEVELS_LOGICAL | GPIO_INT_HIGH_1);
 		if (ret) {
 			LOG_ERR("gpio_pin_interrupt_configure_dt() has failed (%d)", ret);
 		}
@@ -293,7 +297,7 @@ int main(void)
 		/* Every test iteration will see one SPI CS activation and one deactivation. */
 		__ASSERT_NO_MSG(high == 1);
 		__ASSERT_NO_MSG(low == 1);
-#else /* defined(CONFIG_TEST_SPI_RELEASE_BEFORE_SLEEP) */
+#else  /* defined(CONFIG_TEST_SPI_RELEASE_BEFORE_SLEEP) */
 		/* SPI CS gets activated in the first iteration and stays active forever. */
 		if (counter == 0) {
 			/* Observed edge depends on GPIO polarity. */
@@ -322,8 +326,13 @@ int main(void)
 		counter++;
 
 		/* Sleep / enter low power state. */
+		gpio_pin_set_dt(&led, 0);
 		k_msleep(CONFIG_TEST_SLEEP_DURATION_MS);
+		gpio_pin_set_dt(&led, 1);
 	}
 
+#if defined(CONFIG_COVERAGE)
+	printk("Coverage analysis start\n");
+#endif
 	return 0;
 }
