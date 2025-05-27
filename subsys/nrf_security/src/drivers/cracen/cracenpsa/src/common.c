@@ -817,7 +817,12 @@ psa_status_t cracen_load_keyref(const psa_key_attributes_t *attributes, const ui
 	    PSA_KEY_LOCATION_CRACEN) {
 
 		if (cracen_is_ikg_key(attributes)) {
-			return cracen_load_ikg_keyref(attributes, key_buffer, key_buffer_size, k);
+			if (IS_ENABLED(CONFIG_CRACEN_IKG)) {
+				return cracen_load_ikg_keyref(attributes, key_buffer,
+							      key_buffer_size, k);
+			} else {
+				return PSA_ERROR_NOT_SUPPORTED;
+			}
 		}
 
 		k->owner_id = MBEDTLS_SVC_KEY_ID_GET_OWNER_ID(psa_get_key_id(attributes));
