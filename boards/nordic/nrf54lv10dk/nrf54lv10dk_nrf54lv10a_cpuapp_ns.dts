@@ -1,0 +1,8 @@
+/dts-v1/;
+
+#include <nordic/nrf54lv10a_enga_cpuapp.dtsi>
+
+/ {
+    model = "Nordic nRF54LV10 DK";
+    compatible = "nordic,nrf54lv10dk";
+};
