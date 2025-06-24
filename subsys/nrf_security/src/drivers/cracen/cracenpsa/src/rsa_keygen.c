@@ -293,7 +293,11 @@ static int miller_rabin_get_random(uint8_t *workmem, struct cracen_rsacheckpq *r
  * @param[in] workmem      Buffer that the function uses for intermediate results.
  *                         Its size must be \p 2*candidatesz bytes.
  * @param[in] rsagenpq     Structure that contains the parameters needed to
+<<<<<<< HEAD
  *                         generate p and q
+=======
+ * 			   generate p and q
+>>>>>>> 72d497ba25 (add initial support for TF-m on lv10)
  *
  *  The key size in bytes, keysz in \p rsagenpq, is restricted to be even. Therefore this
  * function supports only RSA keys whose bit length is a multiple of 16.
