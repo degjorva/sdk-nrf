@@ -66,11 +66,8 @@ int main(void)
 	IRQ_CONNECT(EGU_N_IRQn, EGU_INT_PRIO, egu_handler, NULL, 0);
 	nrf_egu_int_enable(NRF_EGU_N, NRF_EGU_INT_TRIGGERED0);
 	NVIC_EnableIRQ(EGU_N_IRQn);
-
 	k_work_init(&process_work, process);
 	k_work_init_delayable(&send_work, send);
-
 	k_work_schedule(&send_work, K_NO_WAIT);
-
 	return 0;
 }

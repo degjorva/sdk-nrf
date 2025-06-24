@@ -10,12 +10,12 @@
 
 #include "psa/client.h"
 #include "psa_manifest/sid.h"
+#include <zephyr/kernel.h>
 
 psa_status_t spp_process(void)
 {
 	psa_status_t status;
 	psa_handle_t handle = TFM_SPP_PROCESS_HANDLE;
-
 	status = psa_call(handle, PSA_IPC_CALL, NULL, 0, NULL, 0);
 
 	return status;
@@ -25,7 +25,6 @@ psa_status_t spp_send(void)
 {
 	psa_status_t status;
 	psa_handle_t handle = TFM_SPP_SEND_HANDLE;
-
 	status = psa_call(handle, PSA_IPC_CALL, NULL, 0, NULL, 0);
 
 	return status;
