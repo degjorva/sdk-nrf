@@ -147,9 +147,9 @@ manifest:
       path: nrfxlib
       revision: 130877db205815bfcade91662515e013aaf3771f
     - name: trusted-firmware-m
-      url: https://github.com/degjorva/trusted-firmware-m/
+      repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
-      revision: lv10-tfm
+      revision: pull/205/head
     - name: psa-arch-tests
       repo-path: sdk-psa-arch-tests
       path: modules/tee/tf-m/psa-arch-tests
