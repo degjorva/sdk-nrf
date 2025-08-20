@@ -16,6 +16,11 @@ config TFM_BOARD
 
 if BUILD_WITH_TFM
 
+config TFM_PARTITION_INTERNAL_TRUSTED_STORAGE
+	bool
+	default n if !TFM_CRYPTO_USES_MBEDTLS
+	default y
+
 config TFM_BL2
 	bool
 	default n

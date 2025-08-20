@@ -52,6 +52,15 @@ endmenu
 menu "Crypto component configs"
 	depends on TFM_PARTITION_CRYPTO
 
+config TFM_CRYPTO_USES_MBEDTLS
+	bool "Crypto service uses Mbed TLS"
+	default y
+	help
+	  Whether the TF-M crypto service uses Mbed TLS as the backend crypto library.
+	  When enabled, persistent keys require Internal Trusted Storage (ITS).
+	  When disabled, crypto operations work without ITS dependency and use
+	  hardware crypto acceleration instead.
+
 config TFM_CRYPTO_SINGLE_PART_FUNCS_DISABLED
 	bool "Only enable multi-part operations"
 	default n

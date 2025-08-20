@@ -164,15 +164,17 @@ if (CONFIG_NRF_SECURE_APPROTECT_LOCK)
   target_compile_definitions(platform_s PUBLIC NRF_SECURE_APPROTECT)
 endif()
 
-if (CRYPTO_STORAGE_DISABLED AND TFM_PARTITION_CRYPTO AND NOT TFM_PARTITION_INTERNAL_TRUSTED_STORAGE)
-  # Added here to satisfy the following requirement from tfm_crypto.yaml:
-  #
-  # "dependencies": [
-  #   "TFM_INTERNAL_TRUSTED_STORAGE_SERVICE"
-  # ]
+if (TFM_PARTITION_CRYPTO AND NOT TFM_PARTITION_INTERNAL_TRUSTED_STORAGE AND NOT CONFIG_TFM_CRYPTO_USES_MBEDTLS)
+  # When crypto is enabled without MbedTLS backend and ITS is disabled,
+  # provide stub ITS implementations for crypto library compatibility.
+  # This allows CRACEN/KMU to be used for hardware key storage instead.
   target_compile_definitions(platform_s PUBLIC
     TFM_INTERNAL_TRUSTED_STORAGE_SERVICE_SID=0x00000070)
+  target_sources(platform_s PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/src/psa_its_stubs.c)
 endif()
+
+
 
 if(BL2)
   message(FATAL_ERROR "BL2 is not supported")
