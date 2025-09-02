@@ -223,8 +223,10 @@ config TFM_ITS_STACK_SIZE
 # Nordic additions to ITS Kconfig
 config TFM_ITS_ENCRYPTED
 	bool
+	depends on !CRACEN_NEED_MULTIPART_WORKAROUNDS
 	prompt "PSA Internal Trusted Storage with encryption"
 	default y if SOC_SERIES_NRF54LX
+	select PSA_WANT_ALG_CHACHA20_POLY1305 if SOC_SERIES_NRF54LX
 	select PSA_ITS_ENCRYPTED
 	select PSA_WANT_GENERATE_RANDOM
 	help
