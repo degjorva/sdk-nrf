@@ -1,0 +1,21 @@
+{
+    "version": 0,
+    "keyslots": [
+        {
+            "metadata": "0x4241ff00014b4e80012800000008000600000000cf30ff7f00000000",
+            "value": "0x988efff09255f55ca91b8d49674e2f51b2e1ac6553a5aafdda21a240765850a7"
+        },
+        {
+            "metadata": "0x4241ff00014b4e80012800000008000600000000d130ff7f00000000",
+            "value": "0xdc52e394885808c7fe26cf7be5f5e58a3bf08353b2aff7d896cc39171311ba84"
+        },
+        {
+            "metadata": "0x4241ff00014b4e80012800000008000600000000d330ff7f00000000",
+            "value": "0x57b3cd2c3fb6056dd865296c3d8ba4423b21c3935c9a47d7b610732fc95c86f6"
+        },
+        {
+            "metadata": "0x4241ff00014b4e80012800000008000600000000d530ff7f00000000",
+            "value": "0xcb63fe745ca272b9d5b12330d6db8437249e12e94a1bf176231a4b5582a5ab98"
+        }
+    ]
+}
