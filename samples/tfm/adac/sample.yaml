@@ -1,0 +1,16 @@
+sample:
+  name: ADAC TF-M Sample
+  description: Demonstrates ADAC (Authenticated Debug Access Control) with TF-M
+tests:
+  sample.tfm.adac:
+    sysbuild: true
+    platform_allow:
+      - nrf54l15dk/nrf54l15/cpuapp/ns
+    tags: tfm adac ci_samples_tfm
+
+
+
+
+
+
+
