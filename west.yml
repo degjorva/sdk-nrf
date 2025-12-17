@@ -25,6 +25,9 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: throwtheswitch
       url-base: https://github.com/ThrowTheSwitch
+    # ADAC fork
+    - name: degjorva
+      url-base: https://github.com/degjorva
     - name: dragoon
       url-base: https://projecttools.nordicsemi.no/bitbucket/scm/drgn
     - name: memfault
@@ -147,7 +150,13 @@ manifest:
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
-      revision: df48857af53909c91e02d75d84e46ce3a37f10b4
+      revision: l15-adac-support
+      remote: degjorva
+    - name: psa-adac
+      repo-path: psa-adac
+      path: modules/tee/tf-m/psa-adac
+      revision: adac-testing
+      remote: degjorva
     - name: psa-arch-tests
       repo-path: sdk-psa-arch-tests
       path: modules/tee/tf-m/psa-arch-tests
