@@ -57,6 +57,13 @@ static const cracen_builtin_kmu_key_policy_t g_builtin_kmu_policy[] = {
 	 .key_slot_end = 255,
 	 .kmu_entry_type = KMU_ENTRY_SLOT_RANGE},
 #endif /* TFM_SP_CRYPTO */
+#ifdef TFM_SP_ADAC
+	/* ADAC partition needs access to slots 207-214 for ROTPK storage */
+	{.owner = TFM_SP_ADAC,
+	 .key_slot_start = 0,
+	 .key_slot_end = 255,
+	 .kmu_entry_type = KMU_ENTRY_SLOT_RANGE},
+#endif /* TFM_SP_ADAC */
 	/* The docs have KMU slots >= 180 reserved so don't allow NS users to access them */
 	{.owner = MAPPED_TZ_NS_AGENT_DEFAULT_CLIENT_ID,
 	 .key_slot_start = 0,

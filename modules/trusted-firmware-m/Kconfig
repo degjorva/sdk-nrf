@@ -295,6 +295,70 @@ config TFM_PS_SUPPORT_FORMAT_TRANSITION
 
 endmenu
 
+# ADAC (Authenticated Debug Access Control) partition configuration
+menuconfig TFM_PARTITION_ADAC
+	bool "ADAC (Authenticated Debug Access Control) partition"
+	default n
+	help
+	  Enable the ADAC secure partition for authenticated debug access.
+	  This partition handles secure debug authentication using PSA-ADAC
+	  protocol over the CTRL-AP mailbox interface.
+
+	  When enabled, TF-M will check for pending debug requests at boot
+	  and perform cryptographic authentication before unlocking debug access.
+
+if TFM_PARTITION_ADAC
+
+config TFM_PLATFORM_PSA_ADAC_SECURE_DEBUG
+	bool "Enable PSA ADAC secure debug"
+	default y
+	help
+	  Enable secure debug authentication using PSA-ADAC protocol.
+	  When enabled, TF-M will check for pending debug requests at boot
+	  and perform cryptographic authentication before unlocking debug access.
+
+	  ADAC uses the CTRL-AP mailbox interface to communicate with a host
+	  debugger and verifies debug certificates before granting access.
+
+config TFM_ADAC_ROTPK_KMU_SLOT_BASE
+	int "Base KMU slot for ADAC Root of Trust Public Keys"
+	default 207
+	range 0 240
+	help
+	  Base KMU slot number for ADAC ROTPKs (Ed25519 public keys).
+	  ADAC supports up to 4 key generations for key rotation and revocation.
+	  Each 32-byte Ed25519 key requires 2 consecutive 16-byte KMU slots:
+	    - Generation 0: slots BASE to BASE+1
+	    - Generation 1: slots BASE+2 to BASE+3
+	    - Generation 2: slots BASE+4 to BASE+5
+	    - Generation 3: slots BASE+6 to BASE+7
+
+config TFM_ADAC_AUTH_KEY_GEN
+	int "Initial minimum valid key generation"
+	default 0
+	range 0 3
+	help
+	  Sets the initial minimum key generation that will be accepted.
+	  On first boot, key generations below this value will be revoked
+	  in the KMU. Once revoked, they cannot be restored.
+
+	  Use this to pre-revoke older key generations during manufacturing
+	  or firmware updates. For example, setting this to 2 will revoke
+	  generations 0 and 1 at boot.
+
+config TFM_ADAC_AUTO_REVOKE
+	bool "Auto-revoke older generations on successful auth"
+	default y
+	help
+	  When enabled, authenticating with key generation N will
+	  automatically revoke all key generations less than N in the KMU.
+
+	  This provides automatic key rotation security: once a newer key
+	  is used, older keys are permanently disabled and cannot be used
+	  for future authentications.
+
+endif # TFM_PARTITION_ADAC
+
 # Copied from secure_fw/spm/Kconfig, removed CONFIG prefix
 menu "TF-M SPM component configs"
 

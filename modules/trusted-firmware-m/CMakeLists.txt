@@ -150,6 +150,22 @@ if(CONFIG_TFM_NFCT_PINS_AS_GPIOS)
   )
 endif()
 
+if(CONFIG_TFM_PARTITION_ADAC)
+  set_property(TARGET zephyr_property_target
+    APPEND PROPERTY TFM_CMAKE_OPTIONS
+    -DTFM_PARTITION_ADAC=ON
+    -DTFM_ADAC_ROTPK_KMU_SLOT=${CONFIG_TFM_ADAC_ROTPK_KMU_SLOT}
+  )
+  if(CONFIG_TFM_PLATFORM_PSA_ADAC_SECURE_DEBUG)
+    set_property(TARGET zephyr_property_target
+      APPEND PROPERTY TFM_CMAKE_OPTIONS
+      -DPLATFORM_PSA_ADAC_SECURE_DEBUG=ON
+      -DPLATFORM_PSA_ADAC_SOURCE_PATH="${ZEPHYR_TRUSTED_FIRMWARE_M_MODULE_DIR}/../psa-adac"
+      -DPLATFORM_PSA_ADAC_BUILD_PATH="$<TARGET_PROPERTY:tfm,TFM_BINARY_DIR>/lib/ext/libpsaadac"
+    )
+  endif()
+endif()
+
 zephyr_include_directories(${ZEPHYR_NRF_MODULE_DIR}/include/tfm)
 
 # Default values from config_base.h in TF-M.
