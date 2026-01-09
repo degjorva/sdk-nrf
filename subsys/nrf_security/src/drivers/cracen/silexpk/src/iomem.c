@@ -6,6 +6,8 @@
 
 #include <stdint.h>
 #include <silexpk/iomem.h>
+#include <zephyr/toolchain.h>
+#include <zephyr/sys/util.h>
 
 #ifndef CONFIG_SOC_NRF54LM20A
 
@@ -81,7 +83,7 @@ static void write_incomplete_word(uint32_t *dst, const uint8_t *bytes,
 
 #ifdef SX_INSTRUMENT_MMIO_WITH_PRINTFS
 	printk("write_incomplete_word(%p, 0x%x, %zu, %zu): 0x%x to 0x%x\r\n",
-		dst, *(const uint32_t *)bytes, first_byte_pos, num_bytes, *dst, word);
+		dst, UNALIGNED_GET((const uint32_t *)bytes), first_byte_pos, num_bytes, *dst, word);
 #endif
 	if ((uintptr_t)dst % 4) {
 		SX_WARN_UNALIGNED_ADDR(dst);
@@ -138,14 +140,11 @@ void sx_wrpkmem(void *dst, const void *src, size_t sz)
 		sz -= byte_count;
 	}
 
-	/* Use memcpy to read from src since it may be unaligned.
-	 * dst is guaranteed to be 4-byte aligned at this point.
+	/* dst is guaranteed to be 4-byte aligned at this point.
+	 * Use UNALIGNED_GET to read from src since it may be unaligned.
 	 */
 	for (size_t i = 0; i != sz / 4; ++i) {
-		uint32_t word;
-
-		memcpy(&word, (const uint8_t *)src + i * 4, sizeof(word));
-		((uint32_t *)dst)[i] = word;
+		((uint32_t *)dst)[i] = UNALIGNED_GET((uint32_t *)((const uint8_t *)src + i * 4));
 	}
 
 	if (sz % 4) {
@@ -163,6 +162,46 @@ void sx_wrpkmem_byte(void *dst, uint8_t input_byte)
 
 	((uint8_t *)&word)[byte_index] = input_byte;
 	*word_dst = word;
+}
+
+void sx_rdpkmem(void *dst, const void *src, size_t sz)
+{
+#ifdef SX_INSTRUMENT_MMIO_WITH_PRINTFS
+	printk("sx_rdpkmem(%p, %p, %zu)\r\n", dst, src, sz);
+#endif
+
+	if ((uintptr_t)src % 4) {
+		const uintptr_t src_addr = (uintptr_t)src;
+		const size_t first_byte_pos = src_addr % 4;
+		const size_t byte_count = MIN(4 - first_byte_pos, sz);
+
+		/* Read aligned word from CRACEN, extract the relevant bytes */
+		uint32_t word = *(const uint32_t *)(src_addr & ~3);
+
+		for (size_t i = 0; i < byte_count; ++i) {
+			((uint8_t *)dst)[i] = ((const uint8_t *)&word)[first_byte_pos + i];
+		}
+		dst = (uint8_t *)dst + byte_count;
+		src = (const uint8_t *)src + byte_count;
+		sz -= byte_count;
+	}
+
+	/* src is guaranteed to be 4-byte aligned at this point.
+	 * Use UNALIGNED_PUT to write to dst since it may be unaligned.
+	 */
+	for (size_t i = 0; i != sz / 4; ++i) {
+		UNALIGNED_PUT(((const uint32_t *)src)[i],
+			      (uint32_t *)((uint8_t *)dst + i * 4));
+	}
+
+	if (sz % 4) {
+		/* Read aligned word from CRACEN, write remaining bytes to dst */
+		uint32_t word = ((const uint32_t *)src)[sz / 4];
+
+		for (size_t i = 0; i < sz % 4; ++i) {
+			((uint8_t *)dst)[(sz & ~3) + i] = ((const uint8_t *)&word)[i];
+		}
+	}
 }
 
 #endif
