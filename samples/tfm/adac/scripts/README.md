@@ -6,8 +6,10 @@ These scripts enable Authenticated Debug Access Control (ADAC) on the nRF54L15.
 
 1. **Python packages:**
    ```bash
-   pip install pylink-square cryptography
+   pip install pylink-square pynacl cryptography
    ```
+
+   Note: Uses Ed25519ph (prehashed Ed25519) as per ADAC specification.
 
 2. **nRF Command Line Tools:**
    Download from [Nordic's website](https://www.nordicsemi.com/Products/Development-tools/nRF-Command-Line-Tools)
@@ -174,6 +176,60 @@ The authentication flow:
 | `adac_provision.py` | Generate keys and provision to KMU |
 | `adac_cert.py` | Generate Ed25519 keys and certificates |
 | `adac_host.py` | Perform ADAC authentication via CTRL-AP mailbox |
+
+## nrfutil-kms Integration
+
+The `adac_kms_backend.py` script in `nrf/scripts/nrf_provision/adac/` implements the
+nrfutil-kms subprocess protocol, allowing you to use nrfutil-device for ADAC operations
+with locally stored keys.
+
+For full documentation, see the script's README at:
+`nrf/scripts/nrf_provision/adac/README.rst`
+
+### Quick Start
+
+1. **Generate keys** (if not already done):
+
+   ```bash
+   python3 adac_provision.py --output output/
+   ```
+
+2. **Register the subprocess backend** with nrfutil-kms:
+
+   ```bash
+   # Get the absolute path to the script
+   SCRIPT_PATH=$(realpath ../../scripts/nrf_provision/adac/adac_kms_backend.py)
+   KEY_PATH=$(realpath output/)
+
+   nrfutil kms service add subprocess adac_local \
+     --key-template "{key_name}" \
+     --command python3 $SCRIPT_PATH $KEY_PATH
+   ```
+
+3. **Test the backend**:
+
+   ```bash
+   nrfutil kms service test adac_local gen0
+   ```
+
+4. **Use with nrfutil-device**:
+
+   ```bash
+   nrfutil device x-adac-lcs-change --life-cycle test --serial-number XXX --kms adac_local
+   ```
+
+### Key Name Mapping
+
+The subprocess backend maps key names to PEM files:
+
+| key_name | Private Key File | Public Key File |
+|----------|------------------|-----------------|
+| `gen0` | `private-key.pem` | `public-key.pem` |
+| `gen1` | `private-key-gen1.pem` | `public-key-gen1.pem` |
+| `gen2` | `private-key-gen2.pem` | `public-key-gen2.pem` |
+| `gen3` | `private-key-gen3.pem` | `public-key-gen3.pem` |
+
+You can also use numeric key names (`0`, `1`, `2`, `3`).
 
 ## Troubleshooting
 

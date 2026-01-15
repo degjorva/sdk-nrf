@@ -3,17 +3,22 @@
 ADAC Certificate Generator for nRF54L15
 
 Generates Ed25519 keys and ADAC certificates for testing.
-Uses pure Ed25519 signing via Python cryptography library.
+Uses Ed25519ph (prehashed) signing as per ADAC specification.
 
 Copyright (c) 2025 Nordic Semiconductor ASA
 SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 """
 
 import argparse
+import hashlib
 import struct
 import os
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives import serialization
+
+# Ed25519ph requires OpenSSL 3.x for proper RFC 8032 implementation.
+# The dom2 prefix must be inserted at specific positions in internal hash
+# computations, which NaCl doesn't support.
 
 ADAC_MAJOR_VERSION = 1
 ADAC_MINOR_VERSION = 0
@@ -126,6 +131,140 @@ class Extensions:
     def raw(self):
         return []
 
+def _get_openssl_cmd():
+    """Get the OpenSSL command and library path for Ed25519ph support.
+
+    Ed25519ph requires OpenSSL 3.2+ with the correct syntax:
+        openssl pkeyutl -sign -inkey key.pem -rawin -in msg -pkeyopt instance:Ed25519ph
+
+    Returns tuple of (openssl_path, env_dict) where env_dict contains LD_LIBRARY_PATH if needed.
+    """
+    import subprocess
+
+    openssl_cmd = os.environ.get('OPENSSL_PATH', 'openssl')
+    openssl_lib = os.environ.get('OPENSSL_LIB_PATH', '')
+
+    # Common locations for OpenSSL 3.2+ installations
+    alt_locations = [
+        ('/tmp/openssl-3.3.2/apps/openssl', '/tmp/openssl-3.3.2'),  # Built from source
+        ('/opt/openssl33/bin/openssl', '/opt/openssl33/lib'),
+        ('/opt/openssl32/bin/openssl', '/opt/openssl32/lib'),
+        ('/usr/local/bin/openssl', '/usr/local/lib'),
+        ('/opt/homebrew/bin/openssl', '/opt/homebrew/lib'),
+    ]
+
+    def check_openssl(cmd, lib_path=''):
+        """Check if OpenSSL supports Ed25519ph (needs 3.2+)."""
+        env = os.environ.copy()
+        if lib_path:
+            env['LD_LIBRARY_PATH'] = lib_path + ':' + env.get('LD_LIBRARY_PATH', '')
+        try:
+            result = subprocess.run([cmd, 'version'], capture_output=True, text=True, env=env)
+            version = result.stdout.strip()
+            if 'OpenSSL 3.' in version:
+                parts = version.split()
+                if len(parts) >= 2:
+                    ver = parts[1].split('.')
+                    if len(ver) >= 2 and int(ver[1]) >= 2:
+                        return True, version, env
+            return False, version, env
+        except (FileNotFoundError, Exception):
+            return False, None, env
+
+    # Check custom path first
+    if os.path.exists(openssl_cmd):
+        ok, ver, env = check_openssl(openssl_cmd, openssl_lib)
+        if ok:
+            return openssl_cmd, env
+
+    # Try alternative locations
+    for cmd, lib in alt_locations:
+        if os.path.exists(cmd):
+            ok, ver, env = check_openssl(cmd, lib)
+            if ok:
+                return cmd, env
+
+    # Check system openssl
+    ok, ver, env = check_openssl('openssl')
+    if ok:
+        return 'openssl', env
+
+    raise RuntimeError(
+        f"OpenSSL 3.2+ required for Ed25519ph signing.\n"
+        f"Found: {ver or 'none'}\n"
+        f"Options:\n"
+        f"  1. Build OpenSSL 3.3: cd /tmp && wget https://www.openssl.org/source/openssl-3.3.2.tar.gz && tar xzf openssl-3.3.2.tar.gz && cd openssl-3.3.2 && ./Configure && make\n"
+        f"  2. Set OPENSSL_PATH=/path/to/openssl and OPENSSL_LIB_PATH=/path/to/lib"
+    )
+
+
+def ed25519ph_sign(seed: bytes, message: bytes) -> bytes:
+    """Sign a message using Ed25519ph (prehashed Ed25519).
+
+    Uses OpenSSL 3.2+ for proper RFC 8032 Ed25519ph signing.
+    Set OPENSSL_PATH and OPENSSL_LIB_PATH environment variables if not in PATH.
+
+    Args:
+        seed: 32-byte Ed25519 private key seed
+        message: Message to sign
+
+    Returns:
+        64-byte Ed25519ph signature
+    """
+    import subprocess
+    import tempfile
+
+    openssl_cmd, openssl_env = _get_openssl_cmd()
+
+    # Create Ed25519 private key from seed and write as PEM
+    private_key = ed25519.Ed25519PrivateKey.from_private_bytes(seed)
+    pem_data = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.pem', delete=False) as key_file:
+        key_file.write(pem_data)
+        key_path = key_file.name
+
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.bin', delete=False) as msg_file:
+        msg_file.write(message)
+        msg_path = msg_file.name
+
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.sig', delete=False) as sig_file:
+        sig_path = sig_file.name
+
+    try:
+        # OpenSSL 3.2+ Ed25519ph signing with -pkeyopt instance:Ed25519ph
+        cmd = [
+            openssl_cmd, 'pkeyutl',
+            '-sign',
+            '-inkey', key_path,
+            '-rawin',
+            '-in', msg_path,
+            '-out', sig_path,
+            '-pkeyopt', 'instance:Ed25519ph'
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, env=openssl_env)
+        if result.returncode != 0:
+            raise RuntimeError(f"OpenSSL Ed25519ph signing failed: {result.stderr}")
+
+        with open(sig_path, 'rb') as f:
+            signature = f.read()
+
+        assert len(signature) == EDDSA_ED25519_SIGNATURE_SIZE
+        return signature
+
+    finally:
+        for path in [key_path, msg_path, sig_path]:
+            try:
+                os.unlink(path)
+            except:
+                pass
+
+
 class CertificateEd255Ed255:
     def __init__(self, header, pubkey, extensions_hash, extensions):
         self.header = header
@@ -133,10 +272,10 @@ class CertificateEd255Ed255:
         self.extensions_hash = extensions_hash
         self.extensions = extensions
 
-    def sign(self, private_key):
-        """Sign the certificate with pure Ed25519."""
+    def sign(self, private_key_seed):
+        """Sign the certificate with Ed25519ph (prehashed)."""
         tbs = self.header.pack() + self.pubkey + self.extensions_hash
-        self.signature = private_key.sign(tbs)
+        self.signature = ed25519ph_sign(private_key_seed, tbs)
         assert len(self.signature) == EDDSA_ED25519_SIGNATURE_SIZE
 
     def pack(self):
@@ -224,8 +363,8 @@ def generate_certificate(output_dir, generation=0):
         extensions.raw()
     )
 
-    # Sign the certificate with pure Ed25519
-    certificate.sign(private_key.private_key)
+    # Sign the certificate with Ed25519ph (prehashed)
+    certificate.sign(private_key.raw())
 
     packed_data = certificate.pack()
     print("Certificate length: ", len(packed_data))

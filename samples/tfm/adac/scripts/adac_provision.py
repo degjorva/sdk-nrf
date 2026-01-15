@@ -97,15 +97,20 @@ def load_public_key(key_path: Path) -> bytes:
 
 
 def create_key_metadata(slot_id: int) -> str:
-    """Create PSA key metadata for an Ed25519 public key.
+    """Create PSA key metadata for an Ed25519ph public key.
 
     This replicates the metadata generation from generate_psa_key_attributes.py
-    for an Ed25519 public key with VERIFY usage.
+    for an Ed25519ph public key with VERIFY and EXPORT usage.
+
+    Note: EXPORT is required because tfm_adac.c uses psa_export_key() to read
+    the public key from KMU for signature verification.
     """
-    # PSA key attributes for Ed25519 public key
+    # PSA key attributes for Ed25519ph public key
     # Type: ECC_PUBLIC_KEY_TWISTED_EDWARDS (0x4142)
-    # Usage: VERIFY (0x2800)
-    # Algorithm: EDDSA_PURE (0x06000800)
+    # Usage: VERIFY | EXPORT (0x2801)
+    #   - VERIFY = PSA_KEY_USAGE_VERIFY_MESSAGE (0x0800) | PSA_KEY_USAGE_VERIFY_HASH (0x2000)
+    #   - EXPORT = PSA_KEY_USAGE_EXPORT (0x0001)
+    # Algorithm: ED25519PH (0x0600090B)
     # Location: LOCATION_CRACEN_KMU (0x804E4B00)
     # Persistence: PERSISTENCE_DEFAULT (1)
     # CRACEN Usage: RAW (3)
@@ -116,8 +121,8 @@ def create_key_metadata(slot_id: int) -> str:
     location = 0x804E4B00  # LOCATION_CRACEN_KMU
     persistence = 1  # PERSISTENCE_DEFAULT
     key_lifetime = location | (persistence & 0xFF)
-    usage = 0x2800 | 0x01  # VERIFY + EXPORT (needed to read the key)
-    alg0 = 0x06000800  # EDDSA_PURE
+    usage = 0x2801  # PSA_KEY_USAGE_VERIFY | PSA_KEY_USAGE_EXPORT
+    alg0 = 0x0600090B  # PSA_ALG_ED25519PH
     alg1 = 0  # NONE
     cracen_usage = 3  # RAW
 

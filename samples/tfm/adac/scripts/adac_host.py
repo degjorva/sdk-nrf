@@ -9,7 +9,7 @@ Uses pylink for direct DAP access to the CTRL-AP when device is protected.
 
 Requirements:
     - pylink-square (pip install pylink-square)
-    - cryptography (pip install cryptography)
+    - pynacl (pip install pynacl)
 
 Usage:
     1. Generate certificates: python3 adac_cert.py output/
@@ -21,6 +21,7 @@ SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 """
 
 import argparse
+import hashlib
 import os
 import struct
 import time
@@ -32,8 +33,12 @@ except ImportError:
     print("Error: pylink not found. Install with: pip install pylink-square")
     exit(1)
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519
+try:
+    import nacl.signing
+    import nacl.encoding
+except ImportError:
+    print("Error: pynacl not found. Install with: pip install pynacl")
+    exit(1)
 
 # ============================================================================
 # ADAC Protocol Constants
@@ -384,12 +389,13 @@ class CtrlApMailbox:
         while len(data) % 4 != 0:
             data += b'\x00'
 
-        data_count = len(data) // 4
+        # data_count is in bytes per PSA-ADAC 1.0.2 spec (must be word-aligned)
+        data_count = len(data)
 
         # Build request header: reserved(2) + command(2) + data_count(4)
         header = struct.pack('<HHI', 0, command, data_count)
 
-        print(f"\n>>> Sending command 0x{command:04x} with {data_count} data words")
+        print(f"\n>>> Sending command 0x{command:04x} with {data_count} data bytes")
 
         # Send header (2 words)
         self.write_word(struct.unpack('<I', header[0:4])[0])
@@ -412,11 +418,13 @@ class CtrlApMailbox:
         reserved, status, data_count = struct.unpack('<HHI', header)
 
         status_name = STATUS_NAMES.get(status, f"UNKNOWN(0x{status:04x})")
-        print(f"    Status: {status_name}, Data words: {data_count}")
+        # data_count is in bytes per PSA-ADAC 1.0.2 spec
+        print(f"    Status: {status_name}, Data bytes: {data_count}")
 
-        # Read data words
+        # Read data words (data_count is in bytes, convert to words)
         data = b''
-        for i in range(data_count):
+        data_words = data_count // 4
+        for i in range(data_words):
             word = self.read_word()
             data += struct.pack('<I', word)
 
@@ -424,33 +432,293 @@ class CtrlApMailbox:
 
 
 # ============================================================================
+# Ed25519ph (prehashed) Signing Implementation using OpenSSL 3.x
+# ============================================================================
+#
+# Ed25519ph requires the dom2 prefix to be inserted at specific positions
+# in the internal hash computations, which NaCl/pynacl doesn't support.
+# OpenSSL 3.x has native Ed25519ph support via the -digest sha512 flag.
+#
+# RFC 8032 Ed25519ph:
+#   r = SHA-512(dom2 || prefix || PH(M))    -- dom2 FIRST
+#   k = SHA-512(dom2 || R || A || PH(M))    -- dom2 FIRST
+#
+# NaCl pure Ed25519 signing of (dom2 || PH(M)) would do:
+#   r = SHA-512(prefix || dom2 || PH(M))    -- dom2 in WRONG position
+#
+# This is why we must use OpenSSL for proper Ed25519ph signatures.
+#
+# Set OPENSSL_PATH environment variable to use a specific OpenSSL binary:
+#   export OPENSSL_PATH=/path/to/openssl3/bin/openssl
+# ============================================================================
+
+import subprocess
+import tempfile
+
+def _get_openssl_cmd():
+    """Get the OpenSSL command and library path for Ed25519ph support.
+
+    Ed25519ph requires OpenSSL 3.2+ with the correct syntax:
+        openssl pkeyutl -sign -inkey key.pem -rawin -in msg -pkeyopt instance:Ed25519ph
+
+    Returns tuple of (openssl_path, env_dict) where env_dict contains LD_LIBRARY_PATH if needed.
+    """
+    # Check for custom OpenSSL path
+    openssl_cmd = os.environ.get('OPENSSL_PATH', 'openssl')
+    openssl_lib = os.environ.get('OPENSSL_LIB_PATH', '')
+
+    # Common locations for OpenSSL 3.2+ installations
+    alt_locations = [
+        ('/tmp/openssl-3.3.2/apps/openssl', '/tmp/openssl-3.3.2'),  # Built from source
+        ('/opt/openssl33/bin/openssl', '/opt/openssl33/lib'),
+        ('/opt/openssl32/bin/openssl', '/opt/openssl32/lib'),
+        ('/usr/local/bin/openssl', '/usr/local/lib'),
+        ('/opt/homebrew/bin/openssl', '/opt/homebrew/lib'),
+    ]
+
+    def check_openssl(cmd, lib_path=''):
+        """Check if OpenSSL supports Ed25519ph."""
+        env = os.environ.copy()
+        if lib_path:
+            env['LD_LIBRARY_PATH'] = lib_path + ':' + env.get('LD_LIBRARY_PATH', '')
+        try:
+            result = subprocess.run([cmd, 'version'], capture_output=True, text=True, env=env)
+            version = result.stdout.strip()
+            # Need OpenSSL 3.2+ for Ed25519ph via pkeyopt instance:Ed25519ph
+            if 'OpenSSL 3.' in version:
+                # Extract minor version
+                parts = version.split()
+                if len(parts) >= 2:
+                    ver = parts[1].split('.')
+                    if len(ver) >= 2 and int(ver[1]) >= 2:
+                        return True, version, env
+            return False, version, env
+        except (FileNotFoundError, Exception):
+            return False, None, env
+
+    # Check custom path first
+    if os.path.exists(openssl_cmd):
+        ok, ver, env = check_openssl(openssl_cmd, openssl_lib)
+        if ok:
+            return openssl_cmd, env
+
+    # Try alternative locations
+    for cmd, lib in alt_locations:
+        if os.path.exists(cmd):
+            ok, ver, env = check_openssl(cmd, lib)
+            if ok:
+                print(f"    [INFO] Using OpenSSL from: {cmd} ({ver})")
+                return cmd, env
+
+    # Check system openssl
+    ok, ver, env = check_openssl('openssl')
+    if ok:
+        return 'openssl', env
+
+    raise RuntimeError(
+        f"OpenSSL 3.2+ required for Ed25519ph signing.\n"
+        f"Found: {ver or 'none'}\n"
+        f"Options:\n"
+        f"  1. Build OpenSSL 3.3: cd /tmp && wget https://www.openssl.org/source/openssl-3.3.2.tar.gz && tar xzf openssl-3.3.2.tar.gz && cd openssl-3.3.2 && ./Configure && make\n"
+        f"  2. Set OPENSSL_PATH=/path/to/openssl and OPENSSL_LIB_PATH=/path/to/lib"
+    )
+
+# Cache the OpenSSL command and environment
+_openssl_info = None
+
+def get_openssl():
+    """Get the cached OpenSSL command and environment."""
+    global _openssl_info
+    if _openssl_info is None:
+        _openssl_info = _get_openssl_cmd()
+    return _openssl_info
+
+
+def ed25519ph_sign(signing_key: nacl.signing.SigningKey, message: bytes) -> bytes:
+    """Sign a message using Ed25519ph (prehashed Ed25519).
+
+    Uses OpenSSL 3.x for proper RFC 8032 Ed25519ph signing.
+
+    Args:
+        signing_key: NaCl SigningKey (Ed25519 private key)
+        message: Message to sign
+
+    Returns:
+        64-byte Ed25519ph signature
+    """
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    # Get the seed from NaCl key
+    seed = bytes(signing_key)
+
+    # Create temporary files for key and message
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.pem', delete=False) as key_file:
+        # Create Ed25519 private key from seed and write as PEM
+        private_key = ed25519.Ed25519PrivateKey.from_private_bytes(seed)
+        pem_data = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        key_file.write(pem_data)
+        key_path = key_file.name
+
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.bin', delete=False) as msg_file:
+        msg_file.write(message)
+        msg_path = msg_file.name
+
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.sig', delete=False) as sig_file:
+        sig_path = sig_file.name
+
+    try:
+        openssl_cmd, openssl_env = get_openssl()
+
+        # OpenSSL 3.2+ Ed25519ph signing:
+        # -rawin: raw input (not base64)
+        # -pkeyopt instance:Ed25519ph: selects the Ed25519ph variant (RFC 8032)
+        cmd = [
+            openssl_cmd, 'pkeyutl',
+            '-sign',
+            '-inkey', key_path,
+            '-rawin',
+            '-in', msg_path,
+            '-out', sig_path,
+            '-pkeyopt', 'instance:Ed25519ph'
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, env=openssl_env)
+        if result.returncode != 0:
+            raise RuntimeError(f"OpenSSL Ed25519ph signing failed: {result.stderr}")
+
+        # Read signature
+        with open(sig_path, 'rb') as f:
+            signature = f.read()
+
+        if len(signature) != 64:
+            raise RuntimeError(f"Unexpected signature length: {len(signature)} (expected 64)")
+
+        return signature
+
+    finally:
+        # Cleanup temp files
+        for path in [key_path, msg_path, sig_path]:
+            try:
+                os.unlink(path)
+            except:
+                pass
+
+
+def ed25519ph_verify(verify_key, message: bytes, signature: bytes) -> bool:
+    """Verify an Ed25519ph signature using OpenSSL.
+
+    Args:
+        verify_key: NaCl VerifyKey (Ed25519 public key)
+        message: Original message that was signed
+        signature: 64-byte signature to verify
+
+    Returns:
+        True if signature is valid, False otherwise
+    """
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+    # Get public key bytes
+    pubkey_bytes = bytes(verify_key)
+
+    # Create temporary files
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.pem', delete=False) as key_file:
+        # Create Ed25519 public key and write as PEM
+        public_key = ed25519.Ed25519PublicKey.from_public_bytes(pubkey_bytes)
+        pem_data = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        key_file.write(pem_data)
+        key_path = key_file.name
+
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.bin', delete=False) as msg_file:
+        msg_file.write(message)
+        msg_path = msg_file.name
+
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.sig', delete=False) as sig_file:
+        sig_file.write(signature)
+        sig_path = sig_file.name
+
+    try:
+        openssl_cmd, openssl_env = get_openssl()
+
+        # OpenSSL 3.2+ Ed25519ph verification
+        cmd = [
+            openssl_cmd, 'pkeyutl',
+            '-verify',
+            '-pubin', '-inkey', key_path,
+            '-rawin',
+            '-in', msg_path,
+            '-sigfile', sig_path,
+            '-pkeyopt', 'instance:Ed25519ph'
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, env=openssl_env)
+        return result.returncode == 0
+
+    finally:
+        # Cleanup temp files
+        for path in [key_path, msg_path, sig_path]:
+            try:
+                os.unlink(path)
+            except:
+                pass
+
+
+# ============================================================================
 # Certificate and Token Generation
 # ============================================================================
 
+# Import cryptography for reliable key loading
+from cryptography.hazmat.primitives import serialization as crypto_serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519 as crypto_ed25519
+
 def load_private_key(key_path):
-    """Load an Ed25519 private key from PEM file."""
+    """Load an Ed25519 private key from PEM file.
+
+    Returns a NaCl SigningKey for Ed25519ph operations.
+    Uses cryptography library for reliable PEM parsing.
+    """
     with open(key_path, 'rb') as f:
-        private_key = serialization.load_pem_private_key(f.read(), password=None)
-    if not isinstance(private_key, ed25519.Ed25519PrivateKey):
-        raise ValueError("Key must be Ed25519")
-    return private_key
+        pem_data = f.read()
+
+    # Use cryptography library to load the key (handles all PEM formats)
+    try:
+        private_key = crypto_serialization.load_pem_private_key(pem_data, password=None)
+    except Exception as e:
+        raise ValueError(f"Failed to load private key: {e}")
+
+    if not isinstance(private_key, crypto_ed25519.Ed25519PrivateKey):
+        raise ValueError("Key is not an Ed25519 private key")
+
+    # Get the raw private bytes (seed) - cryptography's raw format is the 32-byte seed
+    seed = private_key.private_bytes_raw()
+
+    # Create NaCl SigningKey from seed
+    return nacl.signing.SigningKey(seed)
 
 
-def get_public_key_bytes(private_key):
-    """Get raw public key bytes from private key."""
-    return private_key.public_key().public_bytes_raw()
+def get_public_key_bytes(signing_key):
+    """Get raw public key bytes from signing key."""
+    return bytes(signing_key.verify_key)
 
 
-def create_certificate(private_key):
-    """Create a self-signed ADAC certificate.
+def create_certificate(signing_key):
+    """Create a self-signed ADAC certificate using Ed25519ph.
 
     Args:
-        private_key: Ed25519 private key
+        signing_key: NaCl SigningKey (Ed25519 private key)
 
     Note: The device determines key generation by matching the certificate's
     public key against its provisioned ROTPKs, so oem_constraint is unused.
     """
-    public_key = get_public_key_bytes(private_key)
+    public_key = get_public_key_bytes(signing_key)
 
     # Build certificate header (48 bytes)
     header = struct.pack(
@@ -475,8 +743,21 @@ def create_certificate(private_key):
     # Data to sign: header + public_key + extensions_hash
     tbs = header + public_key + extensions_hash
 
-    # Sign with pure Ed25519
-    signature = private_key.sign(tbs)
+    print(f"    [DEBUG] Header size: {len(header)} bytes")
+    print(f"    [DEBUG] Public key: {public_key.hex()}")
+    print(f"    [DEBUG] TBS size: {len(tbs)} bytes")
+    print(f"    [DEBUG] TBS hash (SHA-512, first 16 bytes): {hashlib.sha512(tbs).hexdigest()[:32]}")
+
+    # Sign with Ed25519ph (prehashed)
+    signature = ed25519ph_sign(signing_key, tbs)
+
+    print(f"    [DEBUG] Signature ({len(signature)} bytes): {signature.hex()}")
+
+    # Self-verify the signature to ensure it's valid
+    if not ed25519ph_verify(signing_key.verify_key, tbs, signature):
+        print("    [ERROR] Self-verification FAILED! Signature is invalid.")
+    else:
+        print("    [DEBUG] Self-verification PASSED")
 
     assert len(signature) == EDDSA_ED25519_SIGNATURE_SIZE
 
@@ -486,8 +767,8 @@ def create_certificate(private_key):
     return certificate
 
 
-def create_token(private_key, challenge_vector):
-    """Create an authentication token signed with the private key."""
+def create_token(signing_key, challenge_vector):
+    """Create an authentication token signed with Ed25519ph."""
     # Token header
     header = struct.pack(
         '<BB B x I 16s',
@@ -504,8 +785,8 @@ def create_token(private_key, challenge_vector):
     # Data to sign: header + extensions_hash + challenge_vector
     tbs = header + extensions_hash + challenge_vector
 
-    # Sign with pure Ed25519
-    signature = private_key.sign(tbs)
+    # Sign with Ed25519ph (prehashed)
+    signature = ed25519ph_sign(signing_key, tbs)
 
     # Complete token: header + extensions_hash + signature
     token = header + extensions_hash + signature
@@ -513,10 +794,28 @@ def create_token(private_key, challenge_vector):
     return token
 
 
-def wrap_tlv(type_id, data):
-    """Wrap data in a TLV structure."""
-    # TLV: reserved(2) + type_id(2) + length(4) + value
-    return struct.pack('<HHI', 0, type_id, len(data)) + data
+def wrap_auth_fragment(fragment_type_id, data):
+    """Wrap data with adac_auth_fragment_header per PSA-ADAC spec (DEN0101).
+
+    The spec defines AUTH_RESPONSE request data as:
+        struct adac_auth_fragment_header {
+            uint16_t fragment_type_id;
+            uint16_t _reserved;
+        };
+        struct adac_auth_fragment {
+            struct adac_auth_fragment_header header;
+            uint8_t data[];
+        };
+
+    Args:
+        fragment_type_id: 0x0201 for PSA_BINARY_CRT, 0x0200 for PSA_BINARY_TOKEN
+        data: The certificate or token data
+
+    Returns:
+        4-byte header + data
+    """
+    header = struct.pack('<HH', fragment_type_id, 0)  # type_id + reserved
+    return header + data
 
 
 # ============================================================================
@@ -564,10 +863,11 @@ def perform_auth_response(mailbox, certificate, token):
     print("STEP 3a: Send Certificate")
     print("="*60)
 
-    cert_tlv = wrap_tlv(PSA_BINARY_CRT, certificate)
-    print(f"    Certificate size: {len(certificate)} bytes")
+    # Wrap with 4-byte adac_auth_fragment_header per PSA-ADAC spec
+    cert_fragment = wrap_auth_fragment(PSA_BINARY_CRT, certificate)
+    print(f"    Certificate size: {len(certificate)} bytes (+ 4-byte header = {len(cert_fragment)} bytes)")
 
-    mailbox.send_request(ADAC_AUTH_RESPONSE_CMD, cert_tlv)
+    mailbox.send_request(ADAC_AUTH_RESPONSE_CMD, cert_fragment)
     status, _ = mailbox.receive_response()
 
     if status == ADAC_NEED_MORE_DATA:
@@ -581,10 +881,11 @@ def perform_auth_response(mailbox, certificate, token):
     print("STEP 3b: Send Token")
     print("="*60)
 
-    token_tlv = wrap_tlv(PSA_BINARY_TOKEN, token)
-    print(f"    Token size: {len(token)} bytes")
+    # Wrap with 4-byte adac_auth_fragment_header per PSA-ADAC spec
+    token_fragment = wrap_auth_fragment(PSA_BINARY_TOKEN, token)
+    print(f"    Token size: {len(token)} bytes (+ 4-byte header = {len(token_fragment)} bytes)")
 
-    mailbox.send_request(ADAC_AUTH_RESPONSE_CMD, token_tlv)
+    mailbox.send_request(ADAC_AUTH_RESPONSE_CMD, token_fragment)
     status, response_data = mailbox.receive_response()
 
     return status, response_data
