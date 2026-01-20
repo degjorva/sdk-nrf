@@ -17,21 +17,48 @@
 #include <cracen_psa_builtin_key_policy.h>
 #include <drivers/nrfx_utils.h>
 
+/* 0x0 is used by internal code like the hw_unique_key library.
+ * It doesn't have the logic to have an owner ID and resides inside TF-M.
+ */
+#define INTERNAL_CLIENT_ID 0x0
+
 #define MAPPED_TZ_NS_AGENT_DEFAULT_CLIENT_ID (-0x3c000000)
 
+#define PSA_KEY_USAGE_ALL 0xff03
+
 static const cracen_builtin_ikg_key_policy_t g_builtin_ikg_policy[] = {
+	{.owner = INTERNAL_CLIENT_ID,
+	 .key_slot = TFM_BUILTIN_KEY_ID_HUK,
+	 .usage = PSA_KEY_USAGE_SIGN_MESSAGE |
+		  PSA_KEY_USAGE_DERIVE |
+		  PSA_KEY_USAGE_VERIFY_DERIVATION},
 #ifdef TFM_SP_ITS
-	{.owner = TFM_SP_ITS, .key_slot = TFM_BUILTIN_KEY_ID_HUK},
+	{.owner = TFM_SP_ITS,
+	 .key_slot = TFM_BUILTIN_KEY_ID_HUK,
+	 .usage = PSA_KEY_USAGE_ALL},
 #endif /* TFM_SP_ITS */
 #ifdef TFM_SP_PS
-	{.owner = TFM_SP_PS, .key_slot = TFM_BUILTIN_KEY_ID_HUK},
+	{.owner = TFM_SP_PS,
+	 .key_slot = TFM_BUILTIN_KEY_ID_HUK,
+	 .usage = PSA_KEY_USAGE_ALL},
 #endif /* TFM_SP_PS */
 #ifdef TFM_SP_PS_TEST
-	{.owner = TFM_SP_PS_TEST, .key_slot = TFM_BUILTIN_KEY_ID_HUK},
+	{.owner = TFM_SP_PS_TEST,
+	 .key_slot = TFM_BUILTIN_KEY_ID_HUK,
+	 .usage = PSA_KEY_USAGE_ALL},
 #endif /* TFM_SP_PS_TEST */
 #ifdef TFM_SP_INITIAL_ATTESTATION
-	{.owner = TFM_SP_INITIAL_ATTESTATION, .key_slot = TFM_BUILTIN_KEY_ID_IAK}
+	{.owner = TFM_SP_INITIAL_ATTESTATION,
+	 .key_slot = TFM_BUILTIN_KEY_ID_IAK,
+	 .usage = PSA_KEY_USAGE_ALL},
 #endif /* TFM_SP_INITIAL_ATTESTATION */
+	/* NS users can verify with IAK (for attestation verification) */
+	{.owner = MAPPED_TZ_NS_AGENT_DEFAULT_CLIENT_ID,
+	 .key_slot = TFM_BUILTIN_KEY_ID_IAK,
+	 .usage = PSA_KEY_USAGE_VERIFY_HASH | PSA_KEY_USAGE_VERIFY_MESSAGE},
+	/* NOTE: NS users intentionally have NO access to HUK.
+	 * HUK is only accessible to secure partitions (ITS, PS).
+	 */
 };
 
 #ifdef PSA_NEED_CRACEN_KMU_DRIVER
@@ -92,41 +119,38 @@ static bool cracen_builtin_kmu_user_allowed(mbedtls_key_owner_id_t owner,
 }
 #endif /* PSA_NEED_CRACEN_KMU_DRIVER */
 
-static bool cracen_builtin_ikg_user_allowed(mbedtls_key_owner_id_t owner,
-					    psa_drv_slot_number_t slot_number,
-					    const psa_key_attributes_t *attributes)
+psa_key_usage_t cracen_get_builtin_ikg_usage(mbedtls_key_owner_id_t owner,
+					     psa_drv_slot_number_t slot_number)
 {
 	for (uint32_t i = 0; i < NRFX_ARRAY_SIZE(g_builtin_ikg_policy); i++) {
 		if (g_builtin_ikg_policy[i].owner == owner &&
 		    g_builtin_ikg_policy[i].key_slot == slot_number) {
-			return true;
+			return g_builtin_ikg_policy[i].usage;
 		}
 	}
 
-	return false;
+	return 0; /* No policy entry means no access */
 }
 
 bool cracen_builtin_key_user_allowed(const psa_key_attributes_t *attributes)
 {
 	mbedtls_key_owner_id_t owner = MBEDTLS_SVC_KEY_ID_GET_OWNER_ID(psa_get_key_id(attributes));
+	psa_key_id_t key_id = MBEDTLS_SVC_KEY_ID_GET_KEY_ID(psa_get_key_id(attributes));
 	psa_drv_slot_number_t slot_id;
 
-	if (PSA_KEY_LIFETIME_GET_LOCATION(psa_get_key_lifetime(attributes)) ==
-	    PSA_KEY_LOCATION_CRACEN) {
+	switch (PSA_KEY_LIFETIME_GET_LOCATION(psa_get_key_lifetime(attributes))) {
 
-		slot_id = MBEDTLS_SVC_KEY_ID_GET_KEY_ID(psa_get_key_id(attributes));
-		return cracen_builtin_ikg_user_allowed(owner, slot_id, attributes);
-	}
+	case PSA_KEY_LOCATION_CRACEN:
+		slot_id = key_id;
+		return cracen_get_builtin_ikg_usage(owner, slot_id) != 0;
 
 #ifdef PSA_NEED_CRACEN_KMU_DRIVER
-	if (PSA_KEY_LIFETIME_GET_LOCATION(psa_get_key_lifetime(attributes)) ==
-	    PSA_KEY_LOCATION_CRACEN_KMU) {
-
-		slot_id = CRACEN_PSA_GET_KMU_SLOT(
-			MBEDTLS_SVC_KEY_ID_GET_KEY_ID(psa_get_key_id(attributes)));
+	case PSA_KEY_LOCATION_CRACEN_KMU:
+		slot_id = CRACEN_PSA_GET_KMU_SLOT(key_id);
 		return cracen_builtin_kmu_user_allowed(owner, slot_id, attributes);
-	}
 #endif /* PSA_NEED_CRACEN_KMU_DRIVER */
 
-	return true;
+	default:
+		return true;
+	}
 }

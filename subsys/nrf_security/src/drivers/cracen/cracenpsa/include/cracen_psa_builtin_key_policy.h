@@ -15,6 +15,7 @@
 typedef struct {
 	mbedtls_key_owner_id_t owner;
 	psa_drv_slot_number_t key_slot;
+	psa_key_usage_t usage;
 } cracen_builtin_ikg_key_policy_t;
 
 typedef enum {
@@ -31,6 +32,9 @@ typedef struct {
 } cracen_builtin_kmu_key_policy_t;
 
 bool cracen_builtin_key_user_allowed(const psa_key_attributes_t *attributes);
+
+psa_key_usage_t cracen_get_builtin_ikg_usage(mbedtls_key_owner_id_t owner,
+					     psa_drv_slot_number_t slot_number);
 
 #else
 

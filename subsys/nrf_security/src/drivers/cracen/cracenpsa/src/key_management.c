@@ -1560,6 +1560,19 @@ static psa_status_t cracen_ikg_get_builtin_key(psa_drv_slot_number_t slot_number
 	 * and the `lifetime` field of the attribute struct. We will fill all the other
 	 * attributes, and update the `lifetime` field to be more specific.
 	 */
+
+#if defined(__NRF_TFM__)
+	/* Get the per-user usage flags from the policy table.
+	 * The PSA core will enforce these usage flags before calling any operation.
+	 */
+	mbedtls_key_owner_id_t owner = MBEDTLS_SVC_KEY_ID_GET_OWNER_ID(psa_get_key_id(attributes));
+	psa_key_usage_t usage = cracen_get_builtin_ikg_usage(owner, slot_number);
+
+	if (usage == 0) {
+		return PSA_ERROR_NOT_PERMITTED;
+	}
+#endif /* __NRF_TFM__ */
+
 	switch (slot_number) {
 	case CRACEN_BUILTIN_IDENTITY_KEY_ID:
 		psa_set_key_lifetime(attributes, PSA_KEY_LIFETIME_FROM_PERSISTENCE_AND_LOCATION(
@@ -1568,10 +1581,15 @@ static psa_status_t cracen_ikg_get_builtin_key(psa_drv_slot_number_t slot_number
 		psa_set_key_type(attributes, PSA_KEY_TYPE_ECC_KEY_PAIR(PSA_ECC_FAMILY_SECP_R1));
 		psa_set_key_bits(attributes, 256);
 		psa_set_key_algorithm(attributes, PSA_ALG_ECDSA(PSA_ALG_SHA_256));
+#if defined(__NRF_TFM__)
+		psa_set_key_usage_flags(attributes, usage);
+#else
+		/* Without TF-M, secure context has full access */
 		psa_set_key_usage_flags(attributes, PSA_KEY_USAGE_SIGN_MESSAGE |
 							    PSA_KEY_USAGE_SIGN_HASH |
 							    PSA_KEY_USAGE_VERIFY_HASH |
 							    PSA_KEY_USAGE_VERIFY_MESSAGE);
+#endif
 
 		status = cracen_get_opaque_size(attributes, &opaque_key_size);
 		if (status != PSA_SUCCESS) {
@@ -1599,8 +1617,13 @@ static psa_status_t cracen_ikg_get_builtin_key(psa_drv_slot_number_t slot_number
 		psa_set_key_type(attributes, PSA_KEY_TYPE_AES);
 		psa_set_key_bits(attributes, 256);
 		psa_set_key_algorithm(attributes, PSA_ALG_SP800_108_COUNTER_CMAC);
-		psa_set_key_usage_flags(attributes,
-					PSA_KEY_USAGE_DERIVE | PSA_KEY_USAGE_VERIFY_DERIVATION);
+#if defined(__NRF_TFM__)
+		psa_set_key_usage_flags(attributes, usage);
+#else
+		/* Without TF-M, secure context has full access */
+		psa_set_key_usage_flags(attributes, PSA_KEY_USAGE_DERIVE |
+							    PSA_KEY_USAGE_VERIFY_DERIVATION);
+#endif
 
 		status = cracen_get_opaque_size(attributes, &opaque_key_size);
 		if (status != PSA_SUCCESS) {
