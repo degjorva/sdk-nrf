@@ -72,6 +72,13 @@ See the device datasheet, for example `KMU - Key management unit <nRF54L15 Key m
 
 The application can use the KMU slots to store key data for its own purposes.
 Some KMU slots are reserved for current and future |NCS| use cases.
+
+.. note::
+   KMU slot allocations are managed centrally in :file:`cracen_kmu_slot_layout.h` to prevent
+   overlaps between different protocols (Matter, Thread, Bluetooth, WiFi) and device-specific
+   ranges. The system provides compile-time validation to ensure slot ranges do not conflict.
+   See :ref:`ug_nrf54l_crypto_kmu_slot_layout` for more information.
+
 The following table gives an overview of the KMU slots and their usage:
 
 .. list-table:: List of reserved KMU slots
@@ -125,8 +132,10 @@ The following table gives an overview of the KMU slots and their usage:
      - | Revokable firmware image key for immutable bootloader, generation 2.
        | ED25519 public key.
    * - 248-249
-     - Reserved
-     - Random bytes which invalidate the protected RAM content after an operation.
+     - Protected RAM invalidation
+     - | Random bytes which invalidate the protected RAM content after an operation.
+       | These slots are managed by the CRACEN driver and defined in
+       | :file:`cracen_kmu_slot_layout.h`.
    * - 250-255
      - Reserved
      - --

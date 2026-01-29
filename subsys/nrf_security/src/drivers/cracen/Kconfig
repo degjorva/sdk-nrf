@@ -114,12 +114,17 @@ config CRACEN_IKG_SEED_LOAD
 config CRACEN_IKG_SEED_KMU_SLOT
 	int "KMU slot of the CRACEN IKG seed"
 	range 0 183
-	default 183
+	default 183 if SOC_NRF54L15 || SOC_NRF54L10 || SOC_NRF54L05
+	default 183 if SOC_NRF54LM20A || SOC_NRF54LV10A
 	help
 	  The CRACEN IKG seed spans over 3 KMU slots:
 	  the one defined here and the two subsequent ones.
 	  This defines the KMU slot (along with the two following it) to which
 	  the IKG seed is provisioned and that is pushed when loading the IKG seed.
+
+	  Note: Slot allocations are managed centrally in cracen_kmu_slot_layout.h
+	  to prevent overlaps between different protocols and device-specific ranges.
+	  Device-specific defaults are provided, but can be overridden if needed.
 
 config CRACEN_IKG_PERSONALIZED_KEYS
 	bool "CRACEN IKG personalized keys"
@@ -157,6 +162,122 @@ config CRACEN_ENABLE_ECC_COUNTERMEASURES
 	  - Montgomery curve multiplication
 	  - EdDSA base point multiplication
 	  - Edwards point multiplication
+
+if CRACEN_LIB_KMU
+
+comment "KMU Slot Layout Management"
+comment "KMU slot allocations are managed centrally in cracen_kmu_slot_layout.h"
+comment "to prevent overlaps between protocols (Matter, Thread, etc.) and device-specific ranges."
+
+config CRACEN_KMU_BOOTLOADER_SLOT_START
+	int "Starting KMU slot for bootloader keys (device-specific)"
+	range 0 255
+	help
+	  Starting slot number for bootloader public keys (UROT and BL keys).
+	  Defaults are device-specific. Only override if you need a custom layout.
+
+	  If not set, defaults to 226 for nRF54L series devices.
+
+if CRACEN_KMU_BOOTLOADER_SLOT_START
+
+config CRACEN_KMU_BOOTLOADER_SLOT_END
+	int "Ending KMU slot for bootloader keys (exclusive)"
+	range 0 256
+	help
+	  Ending slot number (exclusive) for bootloader keys.
+	  Must be greater than CRACEN_KMU_BOOTLOADER_SLOT_START.
+
+	  If not set, defaults to 247 for nRF54L series devices.
+
+endif # CRACEN_KMU_BOOTLOADER_SLOT_START
+comment "Device-specific defaults are automatically selected based on the target SOC."
+
+config CRACEN_KMU_BOOTLOADER_SLOTS_ENABLED
+	bool "Reserve slots for bootloader keys"
+	default y if SOC_SERIES_NRF54L
+	default n
+	help
+	  Enable this to reserve KMU slots for bootloader public keys (UROT and BL keys).
+	  This is typically enabled for nRF54L series devices that use bootloaders
+	  with key management.
+
+	  When enabled, slots 226-247 are reserved for bootloader keys.
+	  This can be disabled if your application doesn't use a bootloader that
+	  requires these slots.
+
+if CRACEN_KMU_BOOTLOADER_SLOTS_ENABLED
+
+config CRACEN_KMU_BOOTLOADER_SLOT_START
+	int "Starting KMU slot for bootloader keys"
+	range 0 250
+	default 226
+	help
+	  Starting slot number for bootloader public keys.
+	  Default is 226 for nRF54L series devices.
+
+config CRACEN_KMU_BOOTLOADER_SLOT_END
+	int "Ending KMU slot for bootloader keys (exclusive)"
+	range 0 256
+	default 248
+	help
+	  Ending slot number (exclusive) for bootloader keys.
+	  Default is 248 for nRF54L series devices, reserving slots 226-247.
+
+endif # CRACEN_KMU_BOOTLOADER_SLOTS_ENABLED
+
+config CRACEN_KMU_BLUETOOTH_SLOTS
+	bool "Reserve KMU slots for Bluetooth protocol"
+	help
+	  Enable this to reserve a slot range for Bluetooth protocol keys.
+	  When enabled, configure the slot range using CRACEN_KMU_BLUETOOTH_SLOT_START
+	  and CRACEN_KMU_BLUETOOTH_SLOT_END.
+
+if CRACEN_KMU_BLUETOOTH_SLOTS
+
+config CRACEN_KMU_BLUETOOTH_SLOT_START
+	int "Starting KMU slot for Bluetooth keys"
+	range 0 255
+	default 0
+	help
+	  Starting slot number for Bluetooth protocol keys.
+
+config CRACEN_KMU_BLUETOOTH_SLOT_END
+	int "Ending KMU slot for Bluetooth keys (exclusive)"
+	range 0 256
+	default 0
+	help
+	  Ending slot number (exclusive) for Bluetooth protocol keys.
+	  Must be greater than CRACEN_KMU_BLUETOOTH_SLOT_START.
+
+endif # CRACEN_KMU_BLUETOOTH_SLOTS
+
+config CRACEN_KMU_WIFI_SLOTS
+	bool "Reserve KMU slots for WiFi protocol"
+	help
+	  Enable this to reserve a slot range for WiFi protocol keys.
+	  When enabled, configure the slot range using CRACEN_KMU_WIFI_SLOT_START
+	  and CRACEN_KMU_WIFI_SLOT_END.
+
+if CRACEN_KMU_WIFI_SLOTS
+
+config CRACEN_KMU_WIFI_SLOT_START
+	int "Starting KMU slot for WiFi keys"
+	range 0 255
+	default 0
+	help
+	  Starting slot number for WiFi protocol keys.
+
+config CRACEN_KMU_WIFI_SLOT_END
+	int "Ending KMU slot for WiFi keys (exclusive)"
+	range 0 256
+	default 0
+	help
+	  Ending slot number (exclusive) for WiFi protocol keys.
+	  Must be greater than CRACEN_KMU_WIFI_SLOT_START.
+
+endif # CRACEN_KMU_WIFI_SLOTS
+
+endif # CRACEN_LIB_KMU
 
 rsource 'psa_driver.Kconfig'
 

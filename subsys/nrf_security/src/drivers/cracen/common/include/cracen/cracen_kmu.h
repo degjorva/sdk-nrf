@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include <cracen_psa.h>
+#include <cracen_kmu_slot_layout.h>
 
 #define CRACEN_KMU_PUSH_AREA_SIZE 96u
 #define CRACEN_KMU_MAX_KEY_SIZE   48u
@@ -32,9 +33,10 @@ typedef struct {
  * These are meant to have random data that can pushed to the protected RAM after
  * an actual key is being used so that the key material does not reside in the protected
  * RAM for more than the required time.
+ *
+ * @note These are now defined in cracen_kmu_slot_layout.h for centralized management.
+ *       The legacy defines are maintained for backward compatibility.
  */
-#define PROTECTED_RAM_INVALIDATION_DATA_SLOT1 248
-#define PROTECTED_RAM_INVALIDATION_DATA_SLOT2 249
 
 extern uint8_t kmu_push_area[CRACEN_KMU_PUSH_AREA_SIZE];
 

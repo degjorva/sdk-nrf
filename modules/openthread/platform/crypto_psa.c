@@ -19,6 +19,7 @@
 
 #ifdef CONFIG_OPENTHREAD_PSA_NVM_BACKEND_KMU
 #include <cracen_psa_kmu.h>
+#include <cracen_kmu_slot_layout.h>
 
 #define OPENTHREAD_KMU_SINGLE_KEY_SLOT_SIZE (2)
 /* Reserved for six 128-bit keys, and one 256-bit key */
@@ -74,11 +75,17 @@ static otError getKeyRef(otCryptoKeyRef *aInputKeyRef, psa_key_attributes_t *aAt
 	 * so need one KMU slot. The ECDSA private key is the last one on the list, so we can simply
 	 * convert it one by one. Keys starts from 1, so we need to decrease it by 1 to get the
 	 * correct slot.
+	 *
+	 * Use centralized Thread slot range definitions.
 	 */
+#if CRACEN_KMU_THREAD_ENABLED
 	*aInputKeyRef = PSA_KEY_HANDLE_FROM_CRACEN_KMU_SLOT(
 		CRACEN_KMU_KEY_USAGE_SCHEME_RAW,
-		CONFIG_OPENTHREAD_KMU_SLOT_START +
+		CRACEN_KMU_THREAD_SLOT_START +
 			(*aInputKeyRef - CONFIG_OPENTHREAD_PSA_ITS_NVM_OFFSET) - 1);
+#else
+#error "Thread KMU support is not enabled. Enable CONFIG_OPENTHREAD_PSA_NVM_BACKEND_KMU"
+#endif
 
 	/* Convert key attributes to meet KMU requirements */
 	if (aAttributes) {

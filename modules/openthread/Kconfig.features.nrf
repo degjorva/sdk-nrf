@@ -53,5 +53,9 @@ config OPENTHREAD_KMU_SLOT_START
 	  range defined within the application. The slot amount dedicated for OpenThread is
 	  defined in the crypto_psa_key_allocator and can be modified according to changes in
 	  the OpenThread stack.
+	  
+	  Device-specific defaults can be set here if different devices need different ranges.
+	  The centralized slot layout system in cracen_kmu_slot_layout.h will validate
+	  that this range doesn't overlap with other protocols or device-specific ranges.
 
 endif # OPENTHREAD_PSA_NVM_BACKEND_KMU

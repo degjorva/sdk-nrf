@@ -20,6 +20,7 @@
 #include <cracen/common.h>
 #include <internal/ecc/cracen_ecc_helpers.h>
 #include <cracen/cracen_kmu.h>
+#include <cracen_kmu_slot_layout.h>
 
 /* The size of the key CBR (Compact Binary Respresentation), bytes */
 #define CRACEN_KMU_CBR_SIZE		     1u
@@ -37,8 +38,10 @@
  *      Bits 31-16: Unused
  *      Bits 15-8:  slot-id
  *      Bits 7-0:   number of slots
+ *
+ * @note This is now defined in cracen_kmu_slot_layout.h for centralized management.
+ *       The legacy define is maintained for backward compatibility.
  */
-#define PROVISIONING_SLOT 186
 
 #define SECONDARY_SLOT_METADATA_VALUE UINT32_MAX
 
@@ -228,8 +231,8 @@ psa_status_t cracen_provision_prot_ram_inv_slots(void)
 	psa_status_t psa_status;
 	int kmu_slot;
 
-	needs_provisioning = lib_kmu_is_slot_empty(PROTECTED_RAM_INVALIDATION_DATA_SLOT1) ||
-			     lib_kmu_is_slot_empty(PROTECTED_RAM_INVALIDATION_DATA_SLOT2);
+	needs_provisioning = lib_kmu_is_slot_empty(CRACEN_KMU_PROT_RAM_INV_SLOT1) ||
+			     lib_kmu_is_slot_empty(CRACEN_KMU_PROT_RAM_INV_SLOT2);
 
 	if (!needs_provisioning) {
 		return PSA_SUCCESS;
@@ -257,7 +260,7 @@ psa_status_t cracen_provision_prot_ram_inv_slots(void)
 	psa_set_key_id(&key_attributes,
 		       mbedtls_svc_key_id_make(0, PSA_KEY_HANDLE_FROM_CRACEN_KMU_SLOT(
 							  CRACEN_KMU_KEY_USAGE_SCHEME_PROTECTED,
-							  PROTECTED_RAM_INVALIDATION_DATA_SLOT1)));
+							  CRACEN_KMU_PROT_RAM_INV_SLOT1)));
 
 	kmu_slot = CRACEN_PSA_GET_KMU_SLOT(
 		MBEDTLS_SVC_KEY_ID_GET_KEY_ID(psa_get_key_id(&key_attributes)));
@@ -317,17 +320,17 @@ psa_status_t cracen_push_prot_ram_inv_slots(void)
 {
 	bool any_slot_empty;
 
-	any_slot_empty = lib_kmu_is_slot_empty(PROTECTED_RAM_INVALIDATION_DATA_SLOT1) ||
-			 lib_kmu_is_slot_empty(PROTECTED_RAM_INVALIDATION_DATA_SLOT2);
+	any_slot_empty = lib_kmu_is_slot_empty(CRACEN_KMU_PROT_RAM_INV_SLOT1) ||
+			 lib_kmu_is_slot_empty(CRACEN_KMU_PROT_RAM_INV_SLOT2);
 	if (any_slot_empty) {
 		return PSA_ERROR_HARDWARE_FAILURE;
 	}
 
-	if (lib_kmu_push_slot(PROTECTED_RAM_INVALIDATION_DATA_SLOT1) != LIB_KMU_SUCCESS) {
+	if (lib_kmu_push_slot(CRACEN_KMU_PROT_RAM_INV_SLOT1) != LIB_KMU_SUCCESS) {
 		return PSA_ERROR_HARDWARE_FAILURE;
 	}
 
-	if (lib_kmu_push_slot(PROTECTED_RAM_INVALIDATION_DATA_SLOT2) != LIB_KMU_SUCCESS) {
+	if (lib_kmu_push_slot(CRACEN_KMU_PROT_RAM_INV_SLOT2) != LIB_KMU_SUCCESS) {
 		return PSA_ERROR_HARDWARE_FAILURE;
 	}
 
@@ -412,7 +415,7 @@ static bool can_derive(const psa_key_attributes_t *key_attr)
 static psa_status_t clean_up_unfinished_provisioning(void)
 {
 	uint32_t data;
-	int st = lib_kmu_read_metadata(PROVISIONING_SLOT, &data);
+	int st = lib_kmu_read_metadata(CRACEN_KMU_PROVISIONING_SLOT, &data);
 
 	if (st == LIB_KMU_SUCCESS) {
 		uint32_t slot_id = data >> 8;
@@ -427,7 +430,7 @@ static psa_status_t clean_up_unfinished_provisioning(void)
 			}
 		}
 
-		st = lib_kmu_revoke_slot(PROVISIONING_SLOT);
+		st = lib_kmu_revoke_slot(CRACEN_KMU_PROVISIONING_SLOT);
 		if (st != LIB_KMU_SUCCESS) {
 			return PSA_ERROR_HARDWARE_FAILURE;
 		}
@@ -452,7 +455,7 @@ static psa_status_t set_provisioning_in_progress(uint32_t slot_id, uint32_t num_
 	kmu_desc.metadata = slot_id << 8 | num_slots;
 	kmu_desc.rpolicy = LIB_KMU_REV_POLICY_ROTATING;
 
-	int st = lib_kmu_provision_slot(PROVISIONING_SLOT, &kmu_desc);
+	int st = lib_kmu_provision_slot(CRACEN_KMU_PROVISIONING_SLOT, &kmu_desc);
 
 	if (st != LIB_KMU_SUCCESS) {
 		return PSA_ERROR_HARDWARE_FAILURE;
@@ -469,7 +472,7 @@ static psa_status_t set_provisioning_in_progress(uint32_t slot_id, uint32_t num_
  */
 static psa_status_t end_provisioning(uint32_t slot_id, uint32_t num_slots)
 {
-	if (lib_kmu_revoke_slot(PROVISIONING_SLOT) != LIB_KMU_SUCCESS) {
+	if (lib_kmu_revoke_slot(CRACEN_KMU_PROVISIONING_SLOT) != LIB_KMU_SUCCESS) {
 		return PSA_ERROR_HARDWARE_FAILURE;
 	}
 	return PSA_SUCCESS;
@@ -948,7 +951,7 @@ static psa_status_t convert_from_psa_attributes(const psa_key_attributes_t *key_
 		 */
 		kmu_slot = CRACEN_PSA_GET_KMU_SLOT(
 			MBEDTLS_SVC_KEY_ID_GET_KEY_ID(psa_get_key_id(key_attr)));
-		if (kmu_slot != PROTECTED_RAM_INVALIDATION_DATA_SLOT1) {
+		if (kmu_slot != CRACEN_KMU_PROT_RAM_INV_SLOT1) {
 			return PSA_ERROR_NOT_SUPPORTED;
 		}
 	}
@@ -1245,8 +1248,8 @@ psa_status_t cracen_kmu_get_builtin_key(psa_drv_slot_number_t slot_number,
 		return psa_status;
 	}
 
-	if (slot_number == PROTECTED_RAM_INVALIDATION_DATA_SLOT1 ||
-	    slot_number == PROTECTED_RAM_INVALIDATION_DATA_SLOT2) {
+	if (slot_number == CRACEN_KMU_PROT_RAM_INV_SLOT1 ||
+	    slot_number == CRACEN_KMU_PROT_RAM_INV_SLOT2) {
 		/* The protected ram invalidation slots are not used for crypto operations. */
 		return PSA_ERROR_INVALID_ARGUMENT;
 	}
