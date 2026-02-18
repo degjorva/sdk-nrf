@@ -17,7 +17,7 @@
 #include <identity_key.h>
 #include <tfm_spm_log.h>
 #include <pm_config.h>
-#if defined(NRF53_SERIES) && defined(PM_CPUNET_APP_ADDRESS)
+#if defined(NRF53_SERIES) && (defined(PM_CPUNET_APP_ADDRESS) || defined(CONFIG_TFM_HAS_B0N))
 #include <dfu/pcd_common.h>
 #include <spu.h>
 #include <hal/nrf_reset.h>

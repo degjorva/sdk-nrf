@@ -67,6 +67,13 @@ if(NOT ${PLATFORM_DEFAULT_PROVISIONING})
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/common/${provisioning_source}
   )
+
+  if(NRF_PROVISIONING AND "${NRF_SOC_VARIANT}" STREQUAL "nrf5340" AND (CONFIG_PARTITION_MANAGER_ENABLED OR CONFIG_TFM_HAS_B0N))
+    target_sources(platform_s
+      PRIVATE
+        ${ZEPHYR_NRF_MODULE_DIR}/subsys/pcd/src/pcd.c
+    )
+  endif()
 endif()
 
 target_sources(tfm_sprt
