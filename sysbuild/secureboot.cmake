@@ -24,28 +24,59 @@ if(SB_CONFIG_SECURE_BOOT)
 
     set(secure_boot_source_dir ${ZEPHYR_NRF_MODULE_DIR}/samples/nrf5340/netboot)
 
-    ExternalZephyrProject_Add(
-      APPLICATION b0n
-      SOURCE_DIR ${secure_boot_source_dir}
-      BOARD ${board_target_netcore}
-      BOARD_REVISION ${BOARD_REVISION}
-      BUILD_ONLY true
-    )
+    if(SB_CONFIG_PARTITION_MANAGER)
+      ExternalZephyrProject_Add(
+        APPLICATION b0n
+        SOURCE_DIR ${secure_boot_source_dir}
+        BOARD ${board_target_netcore}
+        BOARD_REVISION ${BOARD_REVISION}
+        BUILD_ONLY true
+      )
+
+      set_image_dtc_overlay_file(b0n app_pm.overlay)
+
+      if(NOT "CPUNET" IN_LIST PM_DOMAINS)
+        list(APPEND PM_DOMAINS CPUNET)
+      endif()
+
+      set_property(GLOBAL APPEND PROPERTY
+        PM_CPUNET_IMAGES
+        "b0n"
+      )
+    else()
+      ExternalZephyrProject_Add(
+        APPLICATION b0n
+        SOURCE_DIR ${secure_boot_source_dir}
+        BOARD ${board_target_netcore}
+        BOARD_REVISION ${BOARD_REVISION}
+      )
+
+      include(image_flasher.cmake)
+      add_image_flasher(NAME net_provision HEX_FILE "${CMAKE_BINARY_DIR}/net_provision.hex" BASE_IMAGE b0n)
+      add_overlay_dts(${SB_CONFIG_NETCORE_IMAGE_NAME}
+        ${ZEPHYR_NRF_MODULE_DIR}/snippets/s0-partition/s0-partition.overlay
+      )
+
+      if(SB_CONFIG_NETCORE_APP_UPDATE)
+        # PCD requires the offset of the s0 partition which is read from the b0n image, therefore
+        # ensure that the b0n image is configured before the main application (including variant if
+        # in direct-xip mode) and b0n
+        sysbuild_add_dependencies(CONFIGURE ${DEFAULT_IMAGE} b0n)
+        sysbuild_add_dependencies(CONFIGURE mcuboot b0n)
+
+        if(SB_CONFIG_MCUBOOT_BUILD_DIRECT_XIP_VARIANT)
+          sysbuild_add_dependencies(CONFIGURE mcuboot_secondary_app b0n)
+        endif()
+      endif()
+    endif()
+
     set_target_properties(b0n PROPERTIES
       IMAGE_CONF_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/image_configurations/b0_image_default.cmake
     )
-
-    if(NOT "CPUNET" IN_LIST PM_DOMAINS)
-      list(APPEND PM_DOMAINS CPUNET)
-    endif()
-    set_property(GLOBAL APPEND PROPERTY
-        PM_CPUNET_IMAGES
-        "b0n"
-    )
   endif()
 
-   if(SB_CONFIG_SECURE_BOOT_APPCORE)
-     set(secure_boot_source_dir ${ZEPHYR_NRF_MODULE_DIR}/samples/bootloader)
+  if(SB_CONFIG_SECURE_BOOT_APPCORE)
+    set(secure_boot_source_dir ${ZEPHYR_NRF_MODULE_DIR}/samples/bootloader)
 
     if(SB_CONFIG_PARTITION_MANAGER)
       ExternalZephyrProject_Add(
@@ -54,12 +85,14 @@ if(SB_CONFIG_SECURE_BOOT)
         BUILD_ONLY true
       )
 
+      set_image_dtc_overlay_file(b0 app_pm.overlay)
+
       if(NOT "APP" IN_LIST PM_DOMAINS)
         list(APPEND PM_DOMAINS APP)
       endif()
       set_property(GLOBAL APPEND PROPERTY
-         PM_APP_IMAGES
-         "b0"
+        PM_APP_IMAGES
+        "b0"
       )
     else()
       ExternalZephyrProject_Add(
@@ -73,10 +106,10 @@ if(SB_CONFIG_SECURE_BOOT)
 
     set_target_properties(b0 PROPERTIES
       IMAGE_CONF_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/image_configurations/b0_image_default.cmake
-     )
-   endif()
+    )
+  endif()
 
-   if(SB_CONFIG_SECURE_BOOT_BUILD_S1_VARIANT_IMAGE)
+  if(SB_CONFIG_SECURE_BOOT_BUILD_S1_VARIANT_IMAGE)
     if(SB_CONFIG_PARTITION_MANAGER)
       set(image s1_image)
 
@@ -87,8 +120,8 @@ if(SB_CONFIG_SECURE_BOOT)
       endif()
 
       set_property(GLOBAL APPEND PROPERTY
-         PM_APP_IMAGES
-         "${image}"
+        PM_APP_IMAGES
+        "${image}"
       )
     else()
       if(SB_CONFIG_BOOTLOADER_MCUBOOT)
@@ -111,10 +144,9 @@ if(SB_CONFIG_SECURE_BOOT)
         )
       endif()
     endif()
-   endif()
- endif()
+  endif()
+endif()
 
-set_property(GLOBAL PROPERTY PM_DOMAINS ${PM_DOMAINS})
 if(SB_CONFIG_PARTITION_MANAGER)
   set_property(GLOBAL PROPERTY PM_DOMAINS ${PM_DOMAINS})
 endif()
