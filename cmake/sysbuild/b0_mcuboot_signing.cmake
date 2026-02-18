@@ -173,7 +173,7 @@ function(ncs_secure_boot_mcuboot_sign application bin_files signed_targets prefi
 endfunction()
 
 if(SB_CONFIG_BOOTLOADER_MCUBOOT)
-  if(SB_CONFIG_PARTITION_MANAGER AND SB_CONFIG_SECURE_BOOT_APPCORE)
+  if(SB_CONFIG_SECURE_BOOT_APPCORE)
     set(bin_files)
     set(signed_targets)
     # extra_bin_data is used for generating zip file, and is set to information
