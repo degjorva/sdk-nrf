@@ -27,16 +27,13 @@
 		/* Secure image memory */
 		reg = <0x0 DT_SIZE_K(96)>;
 		ranges = <0x0 0x0 DT_SIZE_K(96)>;
-<<<<<<< Updated upstream
-=======
-
 		nrf_kmu_area: memory@0 {
 			compatible = "zephyr,memory-region";
 			reg = <0x0 0x60>;
 			zephyr,memory-region = "nrf_kmu_area";
 			status = "okay";
 		};
->>>>>>> Stashed changes
+
 	};
 
 	sram0_ns: image_ns@18000 {
