@@ -224,6 +224,14 @@
 /* Use SRAM memory to store RW data */
 #define SRAM_BASE_ADDRESS (0x20000000)
 
+/* KMU push area: 96 bytes at the start of SRAM, derived from the nrf_kmu_area
+ * DTS node. The KMU peripheral has a hardwired push destination at 0x20000000.
+ */
+#if TFM_DT_NODE_EXISTS(TFM_DT_NODELABEL(nrf_kmu_area))
+#define NRF_KMU_AREA_BASE TFM_DT_REG_ADDR(TFM_DT_NODELABEL(nrf_kmu_area))
+#define NRF_KMU_AREA_SIZE TFM_DT_REG_SIZE(TFM_DT_NODELABEL(nrf_kmu_area))
+#endif
+
 #define TOTAL_ROM_SIZE FLASH_TOTAL_SIZE
 
 #if defined(CONFIG_PARTITION_MANAGER_ENABLED)

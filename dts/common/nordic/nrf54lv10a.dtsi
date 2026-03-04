@@ -95,19 +95,17 @@
 			#nordic,ficr-cells = <1>;
 		};
 
-#ifdef USE_NON_SECURE_ADDRESS_MAP
-		/* FLPR is not used with TF-M so NS can use full SRAM */
-		cpuapp_sram: memory@20000000 {
-			compatible = "mmio-sram";
-			reg = <0x20000000 DT_SIZE_K(191)>;
-			ranges = <0x0 0x20000000 DT_SIZE_K(191)>;
-			#address-cells = <1>;
-			#size-cells = <1>;
+#ifndef USE_NON_SECURE_ADDRESS_MAP
+		/* 96 bytes reserved at start of RAM for KMU push area */
+		nrf_kmu_area: memory@20000000 {
+			compatible = "zephyr,memory-region", "mmio-sram";
+			reg = <0x20000000 0x60>;
+			zephyr,memory-region = "nrf_kmu_area";
 		};
-#else
-		cpuapp_sram: memory@20000000 {
-			reg = <0x20000000 DT_SIZE_K(191)>;
-			ranges = <0x0 0x20000000 DT_SIZE_K(191)>;
+
+		cpuapp_sram: memory@20000060 {
+			reg = <0x20000060 (DT_SIZE_K(191) - 0x60)>;
+			ranges = <0x0 0x20000060 (DT_SIZE_K(191) - 0x60)>;
 			compatible = "mmio-sram";
 			#address-cells = <1>;
 			#size-cells = <1>;
@@ -116,6 +114,13 @@
 		cpuflpr_sram: memory@2001fc00 {
 			reg = <0x2001fc00 DT_SIZE_K(64)>;
 			ranges = <0x0 0x2001fc00 DT_SIZE_K(64)>;
+			compatible = "mmio-sram";
+			#address-cells = <1>;
+			#size-cells = <1>;
+		};
+#else
+		/* TF-M NS: no top-level nrf_kmu_area; partition DTSI defines it inside sram0_s */
+		cpuapp_sram: memory@20000000 {
 			compatible = "mmio-sram";
 			#address-cells = <1>;
 			#size-cells = <1>;

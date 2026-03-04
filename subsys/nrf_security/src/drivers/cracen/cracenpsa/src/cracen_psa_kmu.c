@@ -44,24 +44,15 @@
 
 extern nrf_security_mutex_t cracen_mutex_symmetric;
 
-#if DT_NODE_EXISTS(DT_NODELABEL(nrf_kmu_reserved_push_area))
-
 #include <zephyr/dt-bindings/memory-attr/memory-attr.h>
 #include <zephyr/linker/devicetree_regions.h>
-#define KMU_PUSH_AREA_NODE DT_NODELABEL(nrf_kmu_reserved_push_area)
+
+#define KMU_PUSH_AREA_NODE DT_NODELABEL(nrf_kmu_area)
+BUILD_ASSERT(DT_NODE_EXISTS(KMU_PUSH_AREA_NODE),
+	     "nrf_kmu_area DTS node must be defined. "
+	     "Add a nrf_kmu_area node at address 0x20000000.");
 uint8_t kmu_push_area[CRACEN_KMU_PUSH_AREA_SIZE] Z_GENERIC_SECTION(
 	LINKER_DT_NODE_REGION_NAME(KMU_PUSH_AREA_NODE));
-
-#else
-
-/* The section .nrf_kmu_reserved_push_area is placed at the top RAM address
- * by the linker scripts. We do that for both the secure and non-secure builds.
- * Since this buffer is placed on the top of RAM we don't need to have the alignment
- * attribute anymore.
- */
-uint8_t
-kmu_push_area[CRACEN_KMU_PUSH_AREA_SIZE] __attribute__((section(".nrf_kmu_reserved_push_area")));
-#endif
 
 typedef struct kmu_metadata {
 	uint32_t metadata_version: 4;

@@ -17,12 +17,26 @@
  */
 
 &cpuapp_sram {
+	/* Full 192 kB at 0x20000000 so sram0_s (at child offset 0x0) resolves correctly. */
+	reg = <0x20000000 DT_SIZE_K(192)>;
+	ranges = <0x0 0x20000000 DT_SIZE_K(192)>;
+
 	sram0_s: image_s@0 {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		/* Secure image memory */
 		reg = <0x0 DT_SIZE_K(96)>;
 		ranges = <0x0 0x0 DT_SIZE_K(96)>;
+<<<<<<< Updated upstream
+=======
+
+		nrf_kmu_area: memory@0 {
+			compatible = "zephyr,memory-region";
+			reg = <0x0 0x60>;
+			zephyr,memory-region = "nrf_kmu_area";
+			status = "okay";
+		};
+>>>>>>> Stashed changes
 	};
 
 	sram0_ns: image_ns@18000 {
