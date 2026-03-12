@@ -13,25 +13,25 @@
 
 LOG_MODULE_REGISTER(bl_validation, CONFIG_SECURE_BOOT_VALIDATION_LOG_LEVEL);
 
-/* Firmware image contains header, that precedes executable code;
+/* When Partition Manager is enabled the Firmware image may contain
+ * header that precedes executable code;
  * fw_info is placed within image at CONFIG_FW_INFO_OFFSET from the
  * beginning of executable code. This means that within firmware image
- * the fw_info is not placed at CONFIG_FW_INFO_OFFSET but at
- * CONFIG_FW_INFO_OFFSET + CONFIG_ROM_START_OFFSET, where
- * CONFIG_ROM_START_OFFSET is set for the firmware build.
- * The CONFIG_ROM_START_OFFSET of bootloader is not the same, so we
- * can not use it, and instead we use CONFIG_SB_IMAGE_BOOT_OFFSET,
- * which is supposed to be passed the same value as CONFIG_ROM_START_OFFSET
- * of firmware or Partition Manager padding, which is equivalent of
- * reserved header space.
+ * the fw_info is not placed at CONFIG_FW_INFO_OFFSET but after
+ * that extra header, when provided.
  */
 #if USE_PARTITION_MANAGER
 #include <pm_config.h>
 
 /* S0/S1 both have the same pad size */
+#if defined(PM_MCUBOOT_PAD_SIZE)
 #define FIRMWARE_HEADER_SKIP	PM_MCUBOOT_PAD_SIZE
 #else
-#define FIRMWARE_HEADER_SKIP	CONFIG_SB_IMAGE_BOOT_OFFSET
+#define FIRMWARE_HEADER_SKIP	0
+#endif
+#else
+/* Nothing to skip when Partition Manager not enabled */
+#define FIRMWARE_HEADER_SKIP	0
 #endif
 
 #ifdef CONFIG_SB_MONOTONIC_COUNTER_ROLLBACK_PROTECTION
@@ -148,7 +148,7 @@ bool bl_validate_firmware(uint32_t fw_dst_address, uint32_t fw_src_address)
  */
 #if USE_PARTITION_MANAGER
 #include <pm_config.h>
-#if CONFIG_SOC_NRF5340_CPUNET
+#ifdef CONFIG_SOC_NRF5340_CPUNET
 /* When running on nRF5340 CPUNET, then S0 is actually application and
  * there is no S1 slot.
  */
@@ -163,9 +163,10 @@ bool bl_validate_firmware(uint32_t fw_dst_address, uint32_t fw_src_address)
 #else /* USE_PARTITION_MANAGER */
 /* DTS Partitions */
 #include <zephyr/storage/flash_map.h>
-/* Same as described for PP, above, except that this time we use DTS partition labels */
 #define S0_SIZE		FIXED_PARTITION_SIZE(s0_partition)
+
 #if !defined(CONFIG_SOC_NRF5340_CPUNET)
+/* Same as described for PP, above, except that this time we use DTS partition labels */
 #define	S1_SIZE		FIXED_PARTITION_SIZE(s1_partition)
 #endif
 #endif
@@ -325,8 +326,8 @@ static bool validate_signature(const uint32_t fw_src_address, const uint32_t fw_
 		int retval = rot_verify(fw_val_info->public_key,
 					key_data,
 					fw_val_info->signature,
-					(const uint8_t *)fw_src_address,
-					fw_size);
+					(const uint8_t *)fw_src_address + FIRMWARE_HEADER_SKIP,
+					fw_size - FIRMWARE_HEADER_SKIP);
 
 		if (retval == 0) {
 			for (uint32_t i = 0; i < key_data_idx; i++) {
@@ -354,8 +355,8 @@ static bool validate_signature(const uint32_t fw_src_address, const uint32_t fw_
 	}
 #else
 	int retval = rot_verify(NULL, NULL, fw_val_info->signature,
-				(const uint8_t *)fw_src_address,
-				fw_size);
+				(const uint8_t *)fw_src_address + FIRMWARE_HEADER_SKIP,
+				fw_size - FIRMWARE_HEADER_SKIP);
 
 	if (retval == 0) {
 		LOG_INF("Firmware signature verified.");
@@ -544,7 +545,6 @@ static bool validate_firmware(uint32_t fw_dst_address, uint32_t fw_src_address,
 	#error "Validation not specified."
 #endif
 }
-
 
 bool bl_validate_firmware(uint32_t fw_dst_address, uint32_t fw_src_address)
 {
