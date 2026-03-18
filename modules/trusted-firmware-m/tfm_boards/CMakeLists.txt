@@ -68,7 +68,7 @@ if(NOT ${PLATFORM_DEFAULT_PROVISIONING})
     ${CMAKE_CURRENT_SOURCE_DIR}/common/${provisioning_source}
   )
 
-  if(NRF_PROVISIONING AND "${NRF_SOC_VARIANT}" STREQUAL "nrf5340")
+  if(NRF_PROVISIONING AND NRF_PCD_APP AND "${NRF_SOC_VARIANT}" STREQUAL "nrf5340")
     target_sources(platform_s
       PRIVATE
         ${ZEPHYR_NRF_MODULE_DIR}/subsys/pcd/src/pcd.c
