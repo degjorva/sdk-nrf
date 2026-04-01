@@ -38,6 +38,8 @@ endif # BUILD_WITH_TFM
 # Apply this configuration below by setting the Kconfig symbols used by
 # the linker according to the information extracted from DT partitions.
 
+DT_CHOSEN_Z_CODE_PARTITION := zephyr,code-partition
+
 if BOARD_THINGY91X && TRUSTED_EXECUTION_SECURE
 
 config FLASH_LOAD_SIZE

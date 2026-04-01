@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include <common/nordic/nrf91_partition.dtsi>
+
 / {
 	/* Define 4 monochromatic LEDs connected directly
 	 * to the GPIO to be used with CAF LEDs module

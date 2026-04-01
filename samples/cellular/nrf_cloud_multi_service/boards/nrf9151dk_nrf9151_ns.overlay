@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include <common/nordic/nrf91_partition_mcuboot.dtsi>
+
 / {
 	/* Configure partition manager to use gd25wb256 as the external flash */
 	chosen {

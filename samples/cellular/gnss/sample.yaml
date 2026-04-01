@@ -94,6 +94,7 @@ tests:
     extra_args:
       - EXTRA_CONF_FILE=overlay-pgps.conf
       - gnss_SNIPPET="nrf91-modem-trace-uart"
+      - SB_CONFIG_PARTITION_MANAGER=y
     integration_platforms:
       - nrf9151dk/nrf9151/ns
     platform_allow:

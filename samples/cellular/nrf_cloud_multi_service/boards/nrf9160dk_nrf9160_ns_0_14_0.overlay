@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include <common/nordic/nrf91_partition_mcuboot.dtsi>
+
 / {
 	chosen {
 		nordic,pm-ext-flash = &mx25r64;

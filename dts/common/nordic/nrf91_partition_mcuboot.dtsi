@@ -1,0 +1,85 @@
+/*
+ * Copyright (c) 2026 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * Flash layout for nRF91 with MCUboot and TF-M minimal profile.
+ */
+
+/delete-node/ &boot_partition;
+/delete-node/ &slot0_partition;
+/delete-node/ &slot1_partition;
+/delete-node/ &tfm_ps_partition;
+/delete-node/ &tfm_its_partition;
+/delete-node/ &tfm_otp_partition;
+
+&flash0 {
+	/*
+	 * 0x0000_0000  MCUboot                      (32 KB)
+	 * 0x0000_c000  Primary area                 (480 KB)
+	 *   0x0000_c000  Primary secure image         (32 KB)
+	 *   0x0001_8000  Primary non-secure image     (448 KB)
+	 * 0x0007_5000  Secondary area               (480 KB)
+	 *    0x0007_5000  Secondary secure image      (32 KB)
+	 *    0x0008_1000  Secondary non-secure image  (448 KB)
+	 * 0x000f_e000 Settings storage              (32 KB)
+	 */
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0x8000>;
+		};
+
+		slot0_partition: partition@8000 {
+			compatible = "fixed-subpartitions";
+			label = "image-0";
+			reg = <0x00008000 0x78000>;
+			ranges = <0x0 0x0000c000 0x78000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			slot0_s_partition: partition@0 {
+				label = "image-0-secure";
+				reg = <0x00000000 0x8000>;
+			};
+
+			slot0_ns_partition: partition@8000 {
+				label = "image-0-nonsecure";
+				reg = <0x00008000 0x70000>;
+			};
+		};
+
+		slot1_partition: partition@80000 {
+			compatible = "fixed-subpartitions";
+			label = "image-1";
+			reg = <0x00080000 0x87000>;
+			ranges = <0x0 0x00080000 0x78000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			slot1_s_partition: partition@0 {
+				label = "image-1-secure";
+				reg = <0x00000000 0x8000>;
+			};
+
+			slot1_ns_partition: partition@8000 {
+				label = "image-1-nonsecure";
+				reg = <0x00008000 0x70000>;
+			};
+		};
+
+		storage_partition: partition@f8000 {
+			label = "storage";
+			reg = <0x000f8000 0x8000>;
+		};
+	};
+};
+
+/delete-node/ &sram0_s;
+/delete-node/ &sram0_ns;
+
+#include <common/nordic/nrf91_partition_sram.dtsi>
