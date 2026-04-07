@@ -1,0 +1,29 @@
+sample:
+  description: |
+    Reproduces the ZigBee zb_osif_scalarmult() call pattern (X25519 ECDH via
+    PSA_ECC_FAMILY_MONTGOMERY + psa_raw_key_agreement) using RFC 7748 §6.1
+    known test vectors.  Used to debug CONFIG_CRACEN_ECC_COUNTERMEASURES on
+    cracen-lite devices.
+  name: X25519 ECDH sample (ZigBee reproduction)
+tests:
+  sample.ecdh_x25519.cracen:
+    sysbuild: true
+    tags:
+      - psa
+      - cracen
+      - sysbuild
+      - x25519
+    platform_allow:
+      - nrf54l15dk/nrf54l15/cpuapp
+      - nrf54lm20dk/nrf54lm20a/cpuapp
+      - nrf54lm20dk/nrf54lm20b/cpuapp
+      - nrf54lv10dk/nrf54lv10a/cpuapp
+      - nrf7120dk/nrf7120/cpuapp
+    harness: console
+    harness_config:
+      type: multi_line
+      regex:
+        - ".*Example finished successfully!.*"
+    integration_platforms:
+      - nrf54l15dk/nrf54l15/cpuapp
+      - nrf7120dk/nrf7120/cpuapp
