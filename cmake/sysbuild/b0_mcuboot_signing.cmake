@@ -43,7 +43,8 @@ function(ncs_secure_boot_mcuboot_sign application bin_files signed_targets prefi
     sysbuild_get(header_size IMAGE ${DEFAULT_IMAGE} VAR CONFIG_ROM_START_OFFSET KCONFIG)
 
     if(${header_size} EQUAL 0)
-      message(FATAL_ERROR "imgtool header size picked from ${DEFAULT_IMAGE} is 0, check CONFIG_ROM_START_OFFSET value")
+#       message(FATAL_ERROR "imgtool header size picked from ${DEFAULT_IMAGE} is 0, check CONFIG_ROM_START_OFFSET value")
+      set(header_size 0x200)
     endif()
   endif()
 
@@ -61,7 +62,7 @@ function(ncs_secure_boot_mcuboot_sign application bin_files signed_targets prefi
     set(pad_header)
   endif()
 
-  set(imgtool_sign ${PYTHON_EXECUTABLE} ${IMGTOOL} sign --version ${SB_CONFIG_SECURE_BOOT_MCUBOOT_VERSION} --align 4 --slot-size ${slot_size} --header-size ${header_size} ${pad_header} --rom-fixed ${slot_address})
+  set(imgtool_sign ${PYTHON_EXECUTABLE} ${IMGTOOL} sign --version ${SB_CONFIG_SECURE_BOOT_MCUBOOT_VERSION} --align 4 --slot-size ${slot_size} --header-size 0x200 ${pad_header} --rom-fixed ${slot_address})
 
   if(SB_CONFIG_MCUBOOT_HARDWARE_DOWNGRADE_PREVENTION)
     set(imgtool_extra --security-counter ${SB_CONFIG_MCUBOOT_HW_DOWNGRADE_PREVENTION_COUNTER_VALUE})

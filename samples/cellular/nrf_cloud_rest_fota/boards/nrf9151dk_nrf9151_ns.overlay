@@ -14,3 +14,6 @@
 &gd25wb256 {
 	status = "okay";
 };
+
+#include <common/nordic/nrf91_partition_mcuboot.dtsi>
+

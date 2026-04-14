@@ -541,7 +541,7 @@ static bool validate_firmware(uint32_t fw_dst_address, uint32_t fw_src_address,
 	 */
 	if (fw_val_info->address != fwinfo->boot_address) {
 		if (!external) {
-			LOG_ERR("Validation info doesn't belong to this firmware.");
+			LOG_ERR("Validation info doesn't belong to this firmware. info addr %p boot addr %p", fw_val_info->address, fwinfo->boot_address);
 		}
 		return false;
 	}
