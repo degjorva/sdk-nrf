@@ -1,5 +1,5 @@
 / {
 	chosen {
-		zephyr,code-partition = &boot_partition;
+		zephyr,code-partition = &s0_partition;
 	};
 };

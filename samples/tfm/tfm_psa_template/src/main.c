@@ -10,7 +10,15 @@
 #include <tfm_ns_interface.h>
 #include "psa/initial_attestation.h"
 #include <tfm_ioctl_api.h>
+#if defined(CONFIG_PARTITION_MANAGER_ENABLED)
 #include <pm_config.h>
+#define S0_ADDRESS PM_S0_ADDRESS
+#define S1_ADDRESS PM_S1_ADDRESS
+#else
+#include <zephyr/devicetree.h>
+#define S0_ADDRESS DT_REG_ADDR(DT_NODELABEL(s0_partition))
+#define S1_ADDRESS DT_REG_ADDR(DT_NODELABEL(s1_partition))
+#endif
 #include <ctype.h>
 
 /* Define an example stats group; approximates seconds since boot. */
@@ -94,16 +102,16 @@ static void get_fw_info(void)
 	bool s0_active = false;
 	int ret;
 
-	ret = tfm_platform_s0_active(PM_S0_ADDRESS, PM_S1_ADDRESS, &s0_active);
+	ret = tfm_platform_s0_active(S0_ADDRESS, S1_ADDRESS, &s0_active);
 	if (ret != 0) {
 		printk("Unexpected failure from tfm_platform_s0_active [%d]\n", ret);
 	}
 
 	printk("\nFW info S0:\n");
-	get_fw_info_address(PM_S0_ADDRESS);
+	get_fw_info_address(S0_ADDRESS);
 
 	printk("\nFW info S1:\n");
-	get_fw_info_address(PM_S1_ADDRESS);
+	get_fw_info_address(S1_ADDRESS);
 
 	printk("\nActive slot: %s\n", s0_active ? "S0" : "S1");
 }

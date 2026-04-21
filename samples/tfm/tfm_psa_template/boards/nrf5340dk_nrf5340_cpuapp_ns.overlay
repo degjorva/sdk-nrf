@@ -4,8 +4,169 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+/delete-node/ &boot_partition;
+/delete-node/ &slot0_partition;
+/delete-node/ &slot1_partition;
+/delete-node/ &storage_partition;
+
+/delete-node/ &tfm_its_partition;
+/delete-node/ &tfm_otp_partition;
+/delete-node/ &tfm_ps_partition;
+
+/* UICR is not exposed to the non-secure world by default, but the TF-M
+ * secure image built by sysbuild (and the bl_storage.c code it pulls in via
+ * SECURE_BOOT_STORAGE) references DT_NODELABEL(bl_storage). Provide a
+ * synthetic uicr + bl_storage node with the correct absolute addresses so
+ * DT_NODELABEL(bl_storage) resolves when the overlay is forwarded to the
+ * TF-M image.
+ */
 / {
-	chosen {
-		nordic,pm-ext-flash = &mx25r64;
+	soc {
+		uicr_bl: uicr@ff8000 {
+			reg = <0xff8000 0x1000>;
+			ranges = <0x0 0xff8000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			bl_storage: uicr@100 {
+				reg = <0x100 0x280>;
+			};
+		};
+	};
+};
+
+/* Application-core flash layout.
+ *
+ * Partition boundaries are chosen so that the FPROTECT region used by
+ * MCUboot to lock itself (s0_partition + s1_partition) is aligned to the
+ * SPU flash block size (CONFIG_FPROTECT_BLOCK_SIZE = 0x4000 on nRF5340).
+ * fprotect_area() rejects a non-aligned offset or size with -EINVAL,
+ * which would otherwise trigger "Protect mcuboot flash failed" at boot.
+ *
+ * s0 therefore starts at 0x8000 (immediately after b0, no 0x200 gap)
+ * and both s0 and s1 are sized to a multiple of 0x4000. The 0x200
+ * mcuboot fw_info header lives inside s0 (starting at s0 + 0x200 via
+ * CONFIG_SB_IMAGE_BOOT_OFFSET).
+ */
+&flash0 {
+	partitions {
+		b0_partition: partition@0 {
+			compatible = "zephyr,mapped-partition";
+			label = "b0";
+			reg = <0x0 0x8000>;
+		};
+
+		s0_partition: partition@8000 {
+			compatible = "zephyr,mapped-partition";
+			label = "mcuboot";
+			reg = <0x8000 0x10000>;
+		};
+
+		s1_partition: partition@18000 {
+			compatible = "zephyr,mapped-partition";
+			label = "mcuboot_s1";
+			reg = <0x18000 0x10000>;
+		};
+
+		slot0_partition: partition@28000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-0";
+			reg = <0x28000 0x68000>;
+			ranges = <0x0 0x28000 0x68000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			slot0_s_partition: partition@0 {
+				compatible = "zephyr,mapped-partition";
+				label = "image-0-secure";
+				reg = <0x0 0x40000>;
+			};
+
+			slot0_ns_partition: partition@40000 {
+				compatible = "zephyr,mapped-partition";
+				label = "image-0-nonsecure";
+				reg = <0x40000 0x28000>;
+			};
+		};
+
+		slot1_partition: partition@90000 {
+			compatible = "zephyr,mapped-partition";
+			label = "image-1";
+			reg = <0x90000 0x68000>;
+		};
+
+		tfm_storage_partition: partition@f8000 {
+			compatible = "zephyr,mapped-partition";
+			label = "tfm-storage";
+			reg = <0xf8000 DT_SIZE_K(32)>;
+			ranges = <0x0 0xf8000 DT_SIZE_K(32)>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			tfm_its_partition: partition@0 {
+				compatible = "zephyr,mapped-partition";
+				label = "tfm-its";
+				reg = <0x0 DT_SIZE_K(8)>;
+			};
+
+			tfm_otp_partition: partition@2000 {
+				compatible = "zephyr,mapped-partition";
+				label = "tfm-otp";
+				reg = <0x2000 DT_SIZE_K(8)>;
+			};
+
+			tfm_ps_partition: partition@4000 {
+				compatible = "zephyr,mapped-partition";
+				label = "tfm-ps";
+				reg = <0x4000 DT_SIZE_K(16)>;
+			};
+		};
+	};
+};
+
+/* Move sram0_dfu_shared (the PCD command block shared with the network core)
+ * out of sram0_s.
+ *
+ * The default nrf5340_shared_sram_partition.dtsi places sram0_dfu_shared at
+ * &sram0 offset 0x0, i.e. absolute 0x20000000, which overlaps with sram0_s
+ * (0x20000000 - 0x20040000, TF-M's secure SRAM).
+ *
+ * When CONFIG_BUILD_WITH_TFM=y but CONFIG_PARTITION_MANAGER_ENABLED=n, MCUboot
+ * takes the "no TF-M" branch of pcd_lock_ram() and locks this SPU RAM region
+ * as NONSECURE / READ-ONLY / LOCKED before jumping to TF-M. TF-M's initial
+ * MSP lives inside that region, so the first stack push faults with an SPU
+ * RAMACCERR, tfm_core_panic() resets the system, and the device boot-loops.
+ *
+ * Partition Manager worked around this by placing pcd_sram "before end" of
+ * sram_primary (inside sram0_ns). We do the same here at the DTS level:
+ * carve 8 kB off the top of sram0_ns_app and put sram0_dfu_shared there.
+ */
+/delete-node/ &sram0_dfu_shared;
+
+&sram0_ns {
+	sram0_dfu_shared: sram@2e000 {
+		reg = <0x2e000 0x2000>;
+	};
+};
+
+&sram0_ns_app {
+	reg = <0x0 0x2e000>;
+};
+
+/* Network core secondary slot (image-3) on external flash.
+ * MCUboot/mcumgr image management requires slot3_partition when managing the
+ * network core image pair. slot2_partition lives in RAM (flash_sim) for the
+ * transfer staging area, while slot3 persists the incoming image here.
+ */
+&mx25r64 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		slot3_partition: partition@0 {
+			label = "image-3";
+			reg = <0x0 DT_SIZE_K(256)>;
+		};
 	};
 };
