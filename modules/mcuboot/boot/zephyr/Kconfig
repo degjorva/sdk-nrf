@@ -170,6 +170,19 @@ config BOOT_IMAGE_ACCESS_HOOKS
 	default y if MCUBOOT_NETWORK_CORE_IMAGE_NUMBER != -1 && SOC_NRF5340_CPUAPP
 	depends on MCUBOOT
 
+config NRF_MCUBOOT_BOOTS_TFM
+	bool "Next booted image is TF-M"
+	depends on SOC_NRF5340_CPUAPP
+	help
+	  When set, MCUboot treats the next image it boots as TF-M and
+	  avoids taking actions that would prevent TF-M from initialising
+	  correctly. In particular, MCUboot leaves the SPU RAM region used
+	  for the PCD command block (sram0_dfu_shared) unlocked so that
+	  TF-M can reconfigure it; the region is otherwise locked
+	  read-only/non-secure just before jumping to the application.
+	  This is set automatically by nrf sysbuild for non-secure board
+	  targets; normal users should not need to touch it.
+
 config BOOT_IMAGE_ACCESS_HOOK_NRF5340
 	bool "Enable default nRF5340 hook"
 	default y if BOOT_IMAGE_ACCESS_HOOKS

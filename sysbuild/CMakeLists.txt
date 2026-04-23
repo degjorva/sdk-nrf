@@ -463,6 +463,14 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
         ${ZEPHYR_NRF_MODULE_DIR}/modules/mcuboot/tfm.conf
         )
 
+      # Tell MCUboot that TF-M will run as the next image so it does not
+      # lock the SPU RAM region holding sram0_dfu_shared before jumping.
+      # TF-M needs to write to that region during provisioning
+      # (pcd_write_cmd_lock_debug). We can't use CONFIG_BUILD_WITH_TFM in
+      # the MCUboot image directly because that symbol depends on
+      # TRUSTED_EXECUTION_NONSECURE, which is not set in MCUboot.
+      set_config_bool(mcuboot CONFIG_NRF_MCUBOOT_BOOTS_TFM y)
+
       # Add fault injection protection to MCUBOOT
       set_config_bool(mcuboot CONFIG_BOOT_FIH_PROFILE_DEFAULT_LOW y)
     endif()
