@@ -781,10 +781,27 @@ function(${SYSBUILD_CURRENT_MODULE_NAME}_pre_cmake)
             ${ZEPHYR_NRF_MODULE_DIR}/modules/mcuboot/flash_sim_mcuboot.overlay
           )
 
-          add_overlay_dts(
-            ${DEFAULT_IMAGE}
-            ${ZEPHYR_NRF_MODULE_DIR}/modules/mcuboot/flash_sim.overlay
-          )
+          # flash_sim.overlay re-points `chosen zephyr,sram` at
+          # `sram0_offset_for_dfu`, which starts at absolute 0x20002000 and
+          # extends 440 kB upwards. For a TF-M build that region is inside
+          # sram0_s (0x20000000 - 0x20040000), so the NS app would end up
+          # with its MSP inside secure SRAM and trap with SFSR.AUVIOL on
+          # the very first exception push. For non-secure board targets
+          # use flash_sim_ns.overlay, which exposes the same simulated
+          # flash + slot2_partition labels that the DFU zip packager
+          # expects but leaves zephyr,sram pointing at the board default
+          # (sram0_ns_app).
+          if("${BOARD}${BOARD_QUALIFIERS}" MATCHES "(_|/)ns$")
+            add_overlay_dts(
+              ${DEFAULT_IMAGE}
+              ${ZEPHYR_NRF_MODULE_DIR}/modules/mcuboot/flash_sim_ns.overlay
+            )
+          else()
+            add_overlay_dts(
+              ${DEFAULT_IMAGE}
+              ${ZEPHYR_NRF_MODULE_DIR}/modules/mcuboot/flash_sim.overlay
+            )
+          endif()
         endif()
       else()
         set_config_bool(mcuboot CONFIG_PCD_APP n)
