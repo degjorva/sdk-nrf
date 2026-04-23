@@ -20,8 +20,13 @@ if(NOT CONFIG_PARTITION_MANAGER_ENABLED)
   dt_nodelabel(s0_partition_path NODELABEL s0_partition REQUIRED TARGET b0n_target)
   dt_reg_addr(s0_partition_address PATH ${s0_partition_path} TARGET b0n_target)
   dt_reg_size(s0_partition_size PATH ${s0_partition_path} TARGET b0n_target)
-  zephyr_library_compile_options("-DPCD_NET_CORE_APP_ADDRESS=${s0_partition_address}")
-  zephyr_library_compile_options("-DPCD_NET_CORE_APP_SIZE=${s0_partition_size}")
+  # Expose these globally (not just to nrf53_hooks.c) so the DTS fallback in
+  # bootloader/mcuboot/.../sysflash/sysflash.h can derive NETCPU_APP_SLOT_*
+  # for bootutil/loader.c, mirroring what pm_sysflash.h does for PM builds.
+  zephyr_compile_definitions(
+    PCD_NET_CORE_APP_ADDRESS=${s0_partition_address}
+    PCD_NET_CORE_APP_SIZE=${s0_partition_size}
+  )
 endif()
   endif()
 endif()
