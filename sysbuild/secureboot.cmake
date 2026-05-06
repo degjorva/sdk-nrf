@@ -47,6 +47,18 @@ if(SB_CONFIG_SECURE_BOOT)
         ${ZEPHYR_NRF_MODULE_DIR}/sysbuild/overlays/s0-partition.overlay
       )
 
+      # Register b0n and net_provision as network-core images so that the
+      # generic logic in nrf/sysbuild/CMakeLists.txt (which still keys off
+      # PM_CPUNET_IMAGES) classifies them correctly. Without this, sysbuild
+      # would treat them as application-core images and apply application-
+      # only Kconfig options (e.g. CONFIG_NRF_SECURE_APPROTECT_LOCK) to them,
+      # producing spurious Kconfig warnings on cpunet builds.
+      set_property(GLOBAL APPEND PROPERTY
+        PM_CPUNET_IMAGES
+        "b0n"
+        "net_provision"
+      )
+
       if(SB_CONFIG_NETCORE_APP_UPDATE)
         # PCD requires the offset of the s0 partition which is read from the b0n image, therefore
         # ensure that the b0n image is configured before the main application (including variant if
@@ -94,6 +106,15 @@ if(SB_CONFIG_SECURE_BOOT)
 
       include(image_flasher.cmake)
       add_image_flasher(NAME app_provision HEX_FILE "${CMAKE_BINARY_DIR}/app_provision.hex")
+
+      # Mirror the PM-mode bookkeeping for the application core so that the
+      # rest of sysbuild can continue to use PM_APP_IMAGES as the source of
+      # truth for "this image runs on the application core" in non-PM builds.
+      set_property(GLOBAL APPEND PROPERTY
+        PM_APP_IMAGES
+        "b0"
+        "app_provision"
+      )
     endif()
 
     set_target_properties(b0 PROPERTIES
@@ -134,6 +155,11 @@ if(SB_CONFIG_SECURE_BOOT)
         )
 
         add_overlay_dts(mcuboot ${ZEPHYR_NRF_MODULE_DIR}/sysbuild/overlays/s0-partition.overlay)
+
+        set_property(GLOBAL APPEND PROPERTY
+          PM_APP_IMAGES
+          "mcuboot_s1_variant"
+        )
       else()
         ExternalZephyrVariantProject_Add(
           APPLICATION ${DEFAULT_IMAGE}_s1_variant
@@ -143,6 +169,11 @@ if(SB_CONFIG_SECURE_BOOT)
 
         add_overlay_dts(${DEFAULT_IMAGE}
           ${ZEPHYR_NRF_MODULE_DIR}/sysbuild/overlays/s0-partition.overlay
+        )
+
+        set_property(GLOBAL APPEND PROPERTY
+          PM_APP_IMAGES
+          "${DEFAULT_IMAGE}_s1_variant"
         )
       endif()
     endif()
