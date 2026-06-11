@@ -6,6 +6,7 @@
 
 #include <cracen_psa_key_management.h>
 
+#include <psa/crypto_extra.h>
 #include <cracen/common.h>
 #include <cracen/statuscodes.h>
 #include <cracen/cracen_kmu.h>
@@ -17,6 +18,9 @@
 #include <internal/pake/cracen_wpa3_key_management.h>
 #include <internal/pake/cracen_spake2p_key_management.h>
 #include <internal/pake/cracen_srp_key_management.h>
+#if defined(PSA_NEED_CRACEN_KEY_TYPE_ML_DSA_PUBLIC_KEY)
+#include <internal/ml_dsa/cracen_ml_dsa.h>
+#endif
 #include <cracen_psa_builtin_key_policy.h>
 #include <nrf_security_mutexes.h>
 #include <stddef.h>
@@ -48,6 +52,13 @@ psa_status_t cracen_export_public_key(const psa_key_attributes_t *attributes,
 		   PSA_KEY_TYPE_IS_ECC_PUBLIC_KEY(key_type)) {
 		return ecc_export_key(key_buffer, key_buffer_size, data, data_size, data_length);
 	}
+
+#if defined(PSA_NEED_CRACEN_KEY_TYPE_ML_DSA_PUBLIC_KEY)
+	if (key_type == PSA_KEY_TYPE_ML_DSA_PUBLIC_KEY) {
+		return cracen_ml_dsa_export_public_key(attributes, key_buffer, key_buffer_size,
+						       data, data_size, data_length);
+	}
+#endif
 
 	if (IS_ENABLED(PSA_NEED_CRACEN_KEY_TYPE_SPAKE2P_KEY_PAIR_EXPORT_SECP_R1_256)) {
 		if (PSA_KEY_TYPE_IS_SPAKE2P_KEY_PAIR(key_type)) {
@@ -189,6 +200,13 @@ psa_status_t cracen_import_key(const psa_key_attributes_t *attributes, const uin
 		return import_wpa3_sae_pt_key(attributes, data, data_length, key_buffer,
 					  key_buffer_size, key_buffer_length, key_bits);
 	}
+
+#if defined(PSA_NEED_CRACEN_KEY_TYPE_ML_DSA_PUBLIC_KEY)
+	if (key_type == PSA_KEY_TYPE_ML_DSA_PUBLIC_KEY) {
+		return cracen_ml_dsa_import_key(attributes, data, data_length, key_buffer,
+						key_buffer_size, key_buffer_length, key_bits);
+	}
+#endif
 
 	return PSA_ERROR_NOT_SUPPORTED;
 }

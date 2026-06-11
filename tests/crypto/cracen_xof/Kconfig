@@ -1,0 +1,26 @@
+#
+# Copyright (c) 2026 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+# Test-only wrapper that enables the internal-only CRACEN_XOF symbol.
+# In production the CRACEN_XOF symbol is selected by the consumer (e.g. a
+# future ML-DSA driver). The test image is "the consumer" here.
+#
+
+mainmenu "cracen_xof test"
+
+config TEST_CRACEN_XOF
+	bool
+	default y
+	select CRACEN_XOF
+
+config TEST_CRACEN_XOF_SHAKE128
+	bool "Run SHAKE-128 tests"
+	default y
+	help
+	  Disable to skip the SHAKE-128 tests, e.g. when iterating on the
+	  BA418 SHAKE-128 mode value or when SHAKE-128 is known to fall
+	  through to a SW backend that isn't ready yet.
+
+source "Kconfig.zephyr"

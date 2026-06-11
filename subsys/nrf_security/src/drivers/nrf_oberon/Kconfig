@@ -352,6 +352,11 @@ config PSA_NEED_OBERON_XMSS_MT_VERIFY
 	depends on PSA_WANT_ALG_XMSS_MT && !PSA_ACCEL_XMSS_MT
 
 # Oberon ML DSA driver
+#
+# PSA_ACCEL_ML_DSA disables Oberon entirely (used by drivers that
+# provide the full sign+verify+keygen). PSA_ACCEL_ML_DSA_VERIFY only
+# claims the verify path, leaving sign / keygen on Oberon - this is the
+# split used by the CRACEN driver on nRF54L-class parts.
 config PSA_NEED_OBERON_ML_DSA_VERIFY
 	bool
 	default y
@@ -359,8 +364,15 @@ config PSA_NEED_OBERON_ML_DSA_VERIFY
 	            PSA_WANT_ALG_DETERMINISTIC_ML_DSA || \
 		    PSA_WANT_ALG_HASH_ML_DSA || \
 		    PSA_WANT_ALG_DETERMINISTIC_HASH_ML_DSA ) && \
-		   !PSA_ACCEL_ML_DSA
+		   !PSA_ACCEL_ML_DSA && \
+		   !PSA_ACCEL_ML_DSA_VERIFY
 
+# PSA_NEED_OBERON_MESSAGE_ML_DSA / PSA_NEED_OBERON_HASH_ML_DSA gate the
+# message / hash entry points for BOTH sign and verify in
+# oberon_asymmetric_signature.c. The CRACEN verify-only driver only
+# replaces the verify side (which is gated independently by
+# PSA_NEED_OBERON_ML_DSA_VERIFY above), so these stay on whenever Oberon
+# sign is still needed; that's gated on !PSA_ACCEL_ML_DSA only.
 config PSA_NEED_OBERON_MESSAGE_ML_DSA
 	bool
 	default y
@@ -375,16 +387,23 @@ config PSA_NEED_OBERON_HASH_ML_DSA
 		    PSA_WANT_ALG_DETERMINISTIC_HASH_ML_DSA) && \
 		   !PSA_ACCEL_ML_DSA
 
+# Sign stays on Oberon when only the CRACEN verify driver is selected.
+# It is only gated on the full PSA_ACCEL_ML_DSA flag (which a future
+# CRACEN sign driver would set) - not on PSA_ACCEL_ML_DSA_VERIFY.
 config PSA_NEED_OBERON_ML_DSA_SIGN
 	bool
 	default y
-	depends on PSA_NEED_OBERON_ML_DSA_VERIFY
+	depends on (PSA_WANT_ALG_ML_DSA || \
+	            PSA_WANT_ALG_DETERMINISTIC_ML_DSA || \
+		    PSA_WANT_ALG_HASH_ML_DSA || \
+		    PSA_WANT_ALG_DETERMINISTIC_HASH_ML_DSA ) && \
+		   !PSA_ACCEL_ML_DSA
 	depends on PSA_WANT_KEY_TYPE_ML_DSA_KEY_PAIR_BASIC
 
 config PSA_NEED_OBERON_ML_DSA
 	bool
 	default y
-	depends on PSA_NEED_OBERON_ML_DSA_VERIFY
+	depends on PSA_NEED_OBERON_ML_DSA_VERIFY || PSA_NEED_OBERON_ML_DSA_SIGN
 
 # Oberon Hash Driver
 
@@ -1742,7 +1761,11 @@ config PSA_NEED_OBERON_ASYMMETRIC_SIGNATURE_DRIVER
 		   PSA_NEED_OBERON_LMS_VERIFY      || \
 		   PSA_NEED_OBERON_XMSS_MT_VERIFY  || \
 		   PSA_NEED_OBERON_XMSS_VERIFY     || \
-		   PSA_NEED_OBERON_ML_DSA_VERIFY
+		   PSA_NEED_OBERON_ML_DSA_VERIFY   || \
+		   PSA_NEED_OBERON_ECDSA_SIGN      || \
+		   PSA_NEED_OBERON_EDDSA_SIGN      || \
+		   PSA_NEED_OBERON_RSA_ANY_SIGN    || \
+		   PSA_NEED_OBERON_ML_DSA_SIGN
 
 # Oberon key wrap driver
 config PSA_NEED_OBERON_AES_KW

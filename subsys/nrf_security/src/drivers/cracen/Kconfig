@@ -150,6 +150,56 @@ config CRACEN_USE_INTERRUPTS
 	  If this is turned off CRACEN uses active polling instead,
 	  which may have an impact on performance.
 
+config CRACEN_XOF
+	bool
+	help
+	  Enable the internal CRACEN streaming SHAKE-128 / SHAKE-256 XOF API
+	  (sx_xof_*). This is selected by future PQC users (e.g. ML-DSA) that
+	  need an "absorb-once, squeeze-many" SHAKE primitive layered on top
+	  of the BA418 hash core. It is not exposed at the PSA level.
+
+if CRACEN_XOF
+
+config CRACEN_XOF_OUT_BUF_SZ
+	int "Streaming XOF output buffer size (bytes)"
+	default 1008
+	range 168 8192
+	help
+	  Size of the per-context output buffer used by the streaming SHAKE
+	  XOF. The BA418 does not support output continuation: each
+	  sx_xof_squeeze() refill replays the absorbed message and asks for
+	  prev_squeezed + CRACEN_XOF_OUT_BUF_SZ bytes, discarding the prefix
+	  via DMA descriptors. Larger values mean fewer HW invocations per
+	  squeeze chain at the cost of more recomputation work per refill
+	  and more per-context RAM.
+
+	  Default 1008 = 6 SHAKE-128 rate blocks (~7 SHAKE-256 rate blocks).
+	  Sized to satisfy a typical ML-DSA ExpandA polynomial (768 B) in
+	  one HW call. Bump this if your callers squeeze >1 KiB per refill.
+
+config CRACEN_XOF_MSG_BUF_SZ
+	int "Streaming XOF absorb buffer size (bytes)"
+	default 3072 if PSA_NEED_CRACEN_ML_DSA_VERIFY
+	default 1280
+	range 256 8192
+	help
+	  Maximum total absorb length (sum of bytes passed to
+	  sx_xof_absorb() before sx_xof_finalize()). The wrapper buffers
+	  the entire absorbed message + SHAKE pad in the context so that
+	  every squeeze refill can replay it through the BA418.
+
+	  Default 1280 covers ML-DSA seed sizes (<100 B) plus the SHAKE-128
+	  pad (max 168 B) with comfortable headroom for tests that absorb
+	  ~1 KiB messages.
+
+	  ML-DSA verify hashes the bit-packed public key in one shot
+	  (tr = SHAKE-256(pk)); pk is up to 2592 B for ML-DSA-87. The
+	  default is therefore raised to 3072 B when
+	  PSA_NEED_CRACEN_ML_DSA_VERIFY is selected so the largest absorb
+	  in the verify path fits without splitting.
+
+endif # CRACEN_XOF
+
 config CRACEN_ECC_COUNTERMEASURES
 	bool "CRACEN ECC countermeasures"
 	default y

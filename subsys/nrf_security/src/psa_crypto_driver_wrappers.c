@@ -287,8 +287,10 @@ psa_status_t psa_driver_wrapper_verify_message_with_context(
 #if defined(PSA_NEED_CRACEN_KMU_DRIVER)
 	case PSA_KEY_LOCATION_CRACEN_KMU:
 #endif /* PSA_NEED_CRACEN_KMU_DRIVER */
-		status = cracen_verify_message(attributes, key_buffer, key_buffer_size, alg, input,
-					       input_length, signature, signature_length);
+		status = cracen_verify_message_with_context(attributes, key_buffer, key_buffer_size,
+							    alg, input, input_length, context,
+							    context_length, signature,
+							    signature_length);
 		/* Declared with fallback == true */
 		if (status != PSA_ERROR_NOT_SUPPORTED) {
 			return status;
@@ -416,8 +418,10 @@ psa_status_t psa_driver_wrapper_verify_hash_with_context(
 #if defined(PSA_NEED_CRACEN_KMU_DRIVER)
 	case PSA_KEY_LOCATION_CRACEN_KMU:
 #endif /* PSA_NEED_CRACEN_KMU_DRIVER */
-		status = cracen_verify_hash(attributes, key_buffer, key_buffer_size, alg, hash,
-					    hash_length, signature, signature_length);
+		status = cracen_verify_hash_with_context(attributes, key_buffer, key_buffer_size,
+							 alg, hash, hash_length, context,
+							 context_length, signature,
+							 signature_length);
 
 		/* Declared with fallback == true */
 		if (status != PSA_ERROR_NOT_SUPPORTED) {

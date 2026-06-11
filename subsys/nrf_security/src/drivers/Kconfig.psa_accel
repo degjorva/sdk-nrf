@@ -1649,6 +1649,18 @@ config PSA_ACCEL_LMS
 config PSA_ACCEL_ML_DSA
 	bool
 
+config PSA_ACCEL_ML_DSA_VERIFY
+	bool
+
+config PSA_ACCEL_ML_DSA_VERIFY_44
+	bool
+
+config PSA_ACCEL_ML_DSA_VERIFY_65
+	bool
+
+config PSA_ACCEL_ML_DSA_VERIFY_87
+	bool
+
 config PSA_ACCEL_ML_KEM
 	bool
 

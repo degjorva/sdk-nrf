@@ -9,19 +9,15 @@
 #include "crypmasterregs.h"
 #include "hw.h"
 #include "cmdma.h"
+#include "sha3_internal.h"
 
-static const struct sx_digesttags ba418tags = {.cfg = DMATAG_BA418 | DMATAG_CONFIG(0),
-					       .initialstate = DMATAG_BA418 | DMATAG_DATATYPE(1) |
-							       DMATAG_LAST,
-					       .data = DMATAG_BA418 | DMATAG_DATATYPE(0)};
+const struct sx_digesttags ba418tags = {.cfg = DMATAG_BA418 | DMATAG_CONFIG(0),
+					.initialstate = DMATAG_BA418 | DMATAG_DATATYPE(1) |
+							DMATAG_LAST,
+					.data = DMATAG_BA418 | DMATAG_DATATYPE(0)};
 
-/**
- * SHA3/SHAKE padding according to standard sha3 padding scheme described
- * in https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.202.pdf
- * (section 5.1 and B.2).
- */
-static size_t fips202_pad(uint8_t prefix, uint8_t suffix, size_t capacity, size_t msgsz,
-			  uint8_t *padding)
+size_t sha3_fips202_pad(uint8_t prefix, uint8_t suffix, size_t capacity, size_t msgsz,
+			uint8_t *padding)
 {
 	size_t r = (1600 / 8) - capacity;
 	size_t q;
@@ -40,31 +36,14 @@ static size_t fips202_pad(uint8_t prefix, uint8_t suffix, size_t capacity, size_
 	return q;
 }
 
-/** Byte to be added at the beginning of the padding in SHA3 mode */
-#define SHA3_MODE_PREFIX 0x06
-
-/** Byte to be added at the end of the padding in SHA3 mode */
-#define SHA3_MODE_SUFFIX 0x80
-
-/** Byte to be added at the beginning of the padding for SHAKE. */
-#define SHAKE_MODE_PREFIX 0x1F
-
-/** Byte to be added at the end of the padding for SHAKE. */
-#define SHAKE_MODE_SUFFIX 0x80
-
-#define SHA3_SAVE_CONTEXT	   (1 << 6)
-#define SHA3_SHAKE_ENABLE	   (1 << 4)
-#define SHA3_MODE(x)		   ((x) << 0)
-#define SHA3_MODE_SHAKE(x, outlen) ((x) | SHA3_SHAKE_ENABLE | ((outlen) << 8))
-#define SHA3_SW_PAD		   0
-
 static void shake256_digest(struct sxhash *hash_ctx, uint8_t *digest)
 {
 	uint8_t *padding = (uint8_t *)&hash_ctx->extramem;
 	int padsz;
 
 	/* For SHAKE256, the capacity is 64 bytes. */
-	padsz = fips202_pad(SHAKE_MODE_PREFIX, SHAKE_MODE_SUFFIX, 64, hash_ctx->feedsz, padding);
+	padsz = sha3_fips202_pad(SHAKE_MODE_PREFIX, SHAKE_MODE_SUFFIX, 64, hash_ctx->feedsz,
+				 padding);
 
 	/* Use ADD_INDESC_PRIV_RAW instead of ADD_INDESC_PRIV.
 	 * BA418 hardware cannot work with ADD_INDESC_PRIV as BA418 does not
@@ -81,8 +60,8 @@ static void sha3_digest(struct sxhash *hash_ctx, uint8_t *digest)
 	uint8_t *padding = (uint8_t *)&hash_ctx->extramem;
 	int padsz;
 
-	padsz = fips202_pad(SHA3_MODE_PREFIX, SHA3_MODE_SUFFIX, 2 * hash_ctx->algo->digestsz,
-			    hash_ctx->feedsz, padding);
+	padsz = sha3_fips202_pad(SHA3_MODE_PREFIX, SHA3_MODE_SUFFIX, 2 * hash_ctx->algo->digestsz,
+				 hash_ctx->feedsz, padding);
 	/* Use ADD_INDESC_PRIV_RAW instead of ADD_INDESC_PRIV.
 	 * BA418 hardware cannot work with ADD_INDESC_PRIV as BA418 does not
 	 * support byte ignore flags.
@@ -153,3 +132,26 @@ const struct sxhashalg sxhashalg_shake256_64 = {
 	SHA3_MODE_SHAKE(7, 64), SHA3_SW_PAD, SHA3_SAVE_CONTEXT, 64,
 	SX_HASH_BLOCKSZ_SHA3_256, 200, 136, sx_hash_create_ba418_shake256
 };
+
+#ifdef CONFIG_CRACEN_XOF
+/* Variable-output SHAKE entries for the streaming XOF API. The cfgword has
+ * outlen baked to zero; the runtime length is OR'd in by xof.c at HW dispatch
+ * time. digestsz is also zero - sx_hash_digest() must not be called on these
+ * algos. Use the sx_xof_* API instead.
+ *
+ * SHAKE-128: rate 168, capacity 32. Uses BA418 mode SHA3_MODE_SHAKE128
+ * (empirically validated on real silicon - see sha3_internal.h).
+ *
+ * SHAKE-256: rate 136, capacity 64. Same encoding as the existing
+ * sxhashalg_shake256_{64,114} entries, but used through the streaming layer.
+ */
+const struct sxhashalg sxhashalg_shake128 = {
+	SHA3_MODE_SHAKE(SHA3_MODE_SHAKE128, 0), SHA3_SW_PAD, SHA3_SAVE_CONTEXT, 0,
+	SX_HASH_BLOCKSZ_SHAKE128, 200, SX_HASH_BLOCKSZ_SHAKE128, sx_hash_create_ba418_shake256
+};
+
+const struct sxhashalg sxhashalg_shake256 = {
+	SHA3_MODE_SHAKE(7, 0), SHA3_SW_PAD, SHA3_SAVE_CONTEXT, 0,
+	SX_HASH_BLOCKSZ_SHA3_256, 200, SX_HASH_BLOCKSZ_SHA3_256, sx_hash_create_ba418_shake256
+};
+#endif /* CONFIG_CRACEN_XOF */

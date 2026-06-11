@@ -1,0 +1,15 @@
+tests:
+  crypto.cracen_ml_dsa_verify:
+    sysbuild: true
+    platform_allow:
+      - nrf54l15dk/nrf54l15/cpuapp
+      - nrf54lm20dk/nrf54lm20a/cpuapp
+      - nrf54lm20dk/nrf54lm20b/cpuapp
+    integration_platforms:
+      - nrf54lm20dk/nrf54lm20a/cpuapp
+    tags:
+      - crypto
+      - cracen
+      - ml_dsa
+      - pqc
+      - sysbuild

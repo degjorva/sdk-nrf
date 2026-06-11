@@ -79,6 +79,19 @@ if(CONFIG_PSA_NEED_CRACEN_ASYMMETRIC_SIGNATURE_DRIVER)
   )
 endif()
 
+if(CONFIG_PSA_NEED_CRACEN_ASYMMETRIC_SIGNATURE_ANY_ML_DSA)
+  # mldsa-native is vendored from west; we build it as a single
+  # compilation unit per enabled parameter set via cracen_mldsa_wrap.c.
+  list(APPEND cracen_driver_sources
+    ${CMAKE_CURRENT_LIST_DIR}/src/internal/ml_dsa/cracen_mldsa_wrap.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/internal/ml_dsa/cracen_ml_dsa.c
+  )
+  list(APPEND cracen_driver_internal_include_dirs
+    ${CMAKE_CURRENT_LIST_DIR}/src/internal/ml_dsa
+    ${ZEPHYR_MLDSA_NATIVE_MODULE_DIR}/mldsa
+  )
+endif()
+
 if(CONFIG_PSA_NEED_CRACEN_ASYMMETRIC_SIGNATURE_ANY_RSA)
   list(APPEND cracen_driver_sources
     ${CMAKE_CURRENT_LIST_DIR}/src/internal/rsa/cracen_rsa_common.c

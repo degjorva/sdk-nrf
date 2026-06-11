@@ -16,6 +16,12 @@ list(APPEND cracen_driver_sources
   ${CMAKE_CURRENT_LIST_DIR}/src/platform/baremetal/interrupts.c
 )
 
+if(CONFIG_CRACEN_XOF)
+  list(APPEND cracen_driver_sources
+    ${CMAKE_CURRENT_LIST_DIR}/src/xof.c
+  )
+endif()
+
 list(APPEND cracen_driver_include_dirs
     ${CMAKE_CURRENT_LIST_DIR}/include
 )

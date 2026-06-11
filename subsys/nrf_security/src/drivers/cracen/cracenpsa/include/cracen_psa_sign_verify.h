@@ -61,6 +61,21 @@ psa_status_t cracen_verify_message(const psa_key_attributes_t *attributes,
 				   psa_algorithm_t alg, const uint8_t *input, size_t input_length,
 				   const uint8_t *signature, size_t signature_length);
 
+/** @brief Verify a message signature with a FIPS 204 ML-DSA context string.
+ *
+ * Same as cracen_verify_message() but additionally accepts a context
+ * string. For algorithms that do not consume a context (ECDSA, RSA),
+ * @p context and @p context_length are ignored.
+ */
+psa_status_t cracen_verify_message_with_context(const psa_key_attributes_t *attributes,
+						const uint8_t *key_buffer,
+						size_t key_buffer_size, psa_algorithm_t alg,
+						const uint8_t *input, size_t input_length,
+						const uint8_t *context,
+						size_t context_length,
+						const uint8_t *signature,
+						size_t signature_length);
+
 /** @brief Sign a hash.
  *
  * @param[in] attributes      Key attributes.
@@ -102,6 +117,14 @@ psa_status_t cracen_verify_hash(const psa_key_attributes_t *attributes, const ui
 				size_t key_buffer_size, psa_algorithm_t alg, const uint8_t *hash,
 				size_t hash_length, const uint8_t *signature,
 				size_t signature_length);
+
+/** @brief Verify a hash signature with a FIPS 204 ML-DSA context string. */
+psa_status_t cracen_verify_hash_with_context(const psa_key_attributes_t *attributes,
+					     const uint8_t *key_buffer, size_t key_buffer_size,
+					     psa_algorithm_t alg, const uint8_t *hash,
+					     size_t hash_length, const uint8_t *context,
+					     size_t context_length, const uint8_t *signature,
+					     size_t signature_length);
 
 /** @} */
 

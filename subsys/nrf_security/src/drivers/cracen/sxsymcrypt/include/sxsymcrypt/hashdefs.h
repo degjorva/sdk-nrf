@@ -23,6 +23,7 @@
 #define SX_HASH_DIGESTSZ_SHA2_224 28
 #define SX_HASH_DIGESTSZ_SHA1 20
 
+#define SX_HASH_BLOCKSZ_SHAKE128 168
 #define SX_HASH_BLOCKSZ_SHA3_224 144
 #define SX_HASH_BLOCKSZ_SHA3_256 136
 #define SX_HASH_BLOCKSZ_SHA2_384 128
@@ -37,7 +38,14 @@
 /*
  * !!! ORDER MATTERS !!!
  */
-#if defined(PSA_NEED_CRACEN_SHA3_224)
+#if defined(CONFIG_CRACEN_XOF)
+/* SHAKE-128 has the largest rate (168 bytes) of any BA418 variant, and
+ * the streaming XOF stages the SHAKE pad in extramem just like the existing
+ * fixed-output SHAKE-256 entries. Pin the maximum to the SHAKE-128 rate
+ * whenever the XOF API is compiled in.
+ */
+#define SX_HASH_MAX_ENABLED_BLOCK_SIZE SX_HASH_BLOCKSZ_SHAKE128
+#elif defined(PSA_NEED_CRACEN_SHA3_224)
 #define SX_HASH_MAX_ENABLED_BLOCK_SIZE SX_HASH_BLOCKSZ_SHA3_224
 #elif defined(PSA_NEED_CRACEN_SHA3_256) || defined(PSA_NEED_CRACEN_SHAKE256_512)
 #define SX_HASH_MAX_ENABLED_BLOCK_SIZE SX_HASH_BLOCKSZ_SHA3_256
@@ -64,7 +72,12 @@
  *
  * !!! ORDER MATTERS !!!
  */
-#if defined(PSA_NEED_CRACEN_SHA3_224)
+#if defined(CONFIG_CRACEN_XOF)
+/* 200-byte Keccak state + 168-byte SHAKE-128 max pad. Worst case across
+ * all BA418 variants when the XOF API is enabled.
+ */
+#define SX_HASH_OPERATION_CONTEXT_SZ 368
+#elif defined(PSA_NEED_CRACEN_SHA3_224)
 #define SX_HASH_OPERATION_CONTEXT_SZ 344
 #elif defined(PSA_NEED_CRACEN_SHA3_256) || defined(PSA_NEED_CRACEN_SHAKE256_512)
 #define SX_HASH_OPERATION_CONTEXT_SZ 336
@@ -171,6 +184,22 @@ extern const struct sxhashalg sxhashalg_sha3_512;
 /** Hash algorithm SHAKE256, with output size fixed to 114 bytes (for Ed448). */
 extern const struct sxhashalg sxhashalg_shake256_114;
 extern const struct sxhashalg sxhashalg_shake256_64;
+
+/** Variable-output SHAKE-128 (rate 168, capacity 32) for the streaming XOF API.
+ *
+ * The cfgword does not bake in an output length; the per-call output size is
+ * patched into the cfg by the sx_xof_* layer at HW dispatch time. Do not call
+ * sx_hash_digest() on this algo directly - use the sx_xof_* API.
+ */
+extern const struct sxhashalg sxhashalg_shake128;
+
+/** Variable-output SHAKE-256 (rate 136, capacity 64) for the streaming XOF API.
+ *
+ * Like sxhashalg_shake128, but for SHAKE-256. Distinct from the existing
+ * sxhashalg_shake256_64 / sxhashalg_shake256_114 entries used by Ed25519/Ed448,
+ * which have a fixed output length baked into their cfgword.
+ */
+extern const struct sxhashalg sxhashalg_shake256;
 
 /** GM/T 0004-2012: SM3 cryptographic hash algorithm */
 extern const struct sxhashalg sxhashalg_sm3;
