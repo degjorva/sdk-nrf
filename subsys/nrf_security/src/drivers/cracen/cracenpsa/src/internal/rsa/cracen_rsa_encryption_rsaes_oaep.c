@@ -61,7 +61,7 @@ static void rsa_oaep_decrypt_init(struct rsa_oaep_workmem *workmem, size_t diges
 
 int cracen_rsa_oaep_decrypt(const struct sxhashalg *hashalg, struct cracen_rsa_key *rsa_key,
 			    struct cracen_crypt_text *text, struct sx_const_buf *label,
-			    uint8_t *output, size_t *output_length)
+			    uint8_t *output, size_t output_size, size_t *output_length)
 {
 	int sx_status;
 	size_t digestsz = sx_hash_get_alg_digestsz(hashalg);
@@ -162,6 +162,11 @@ int cracen_rsa_oaep_decrypt(const struct sxhashalg *hashalg, struct cracen_rsa_k
 		return SX_ERR_INVALID_CIPHERTEXT;
 	}
 
+	if ((size_t)(workmem.datablockend - datab) > output_size) {
+		safe_memzero(workmem.workmem, sizeof(workmem.workmem));
+		return SX_ERR_OUTPUT_BUFFER_TOO_SMALL;
+	}
+
 	memcpy(output, datab, workmem.datablockend - datab);
 	*output_length = workmem.datablockend - datab;
 	safe_memzero(workmem.workmem, sizeof(workmem.workmem));
@@ -177,7 +182,7 @@ static void rsa_oaep_encrypt_init(struct rsa_oaep_workmem *workmem, size_t diges
 
 int cracen_rsa_oaep_encrypt(const struct sxhashalg *hashalg, struct cracen_rsa_key *rsa_key,
 			    struct cracen_crypt_text *text, struct sx_const_buf *label,
-			    uint8_t *output, size_t *output_length)
+			    uint8_t *output, size_t output_size, size_t *output_length)
 {
 	int sx_status;
 	psa_status_t psa_status = PSA_ERROR_CORRUPTION_DETECTED;
@@ -275,6 +280,11 @@ int cracen_rsa_oaep_encrypt(const struct sxhashalg *hashalg, struct cracen_rsa_k
 
 	sx_rdpkmem(workmem.wmem, outputs[0], opsz);
 	sx_pk_release_req(&req);
+
+	if ((size_t)opsz > output_size) {
+		safe_memzero(workmem.workmem, sizeof(workmem.workmem));
+		return SX_ERR_OUTPUT_BUFFER_TOO_SMALL;
+	}
 
 	memcpy(output, workmem.wmem, opsz);
 	*output_length = opsz;
