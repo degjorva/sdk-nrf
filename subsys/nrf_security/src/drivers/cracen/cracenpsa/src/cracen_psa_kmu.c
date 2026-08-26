@@ -55,11 +55,11 @@
 
 extern nrf_security_mutex_t cracen_mutex_symmetric;
 
-#if DT_NODE_EXISTS(DT_NODELABEL(nrf_kmu_reserved_push_area))
+#if DT_NODE_EXISTS(DT_NODELABEL(kmu_push_area))
 
 #include <zephyr/dt-bindings/memory-attr/memory-attr.h>
 #include <zephyr/linker/devicetree_regions.h>
-#define KMU_PUSH_AREA_NODE DT_NODELABEL(nrf_kmu_reserved_push_area)
+#define KMU_PUSH_AREA_NODE DT_NODELABEL(kmu_push_area)
 uint8_t kmu_push_area[CRACEN_KMU_PUSH_AREA_SIZE] Z_GENERIC_SECTION(
 	LINKER_DT_NODE_REGION_NAME(KMU_PUSH_AREA_NODE));
 

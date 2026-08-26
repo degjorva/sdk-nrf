@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
 
-dt_nodelabel(kmu_push_area_node NODELABEL nrf_kmu_reserved_push_area)
+dt_nodelabel(kmu_push_area_node NODELABEL kmu_push_area)
 
 # We need a buffer in memory in a static location which can be used by
 # the KMU peripheral. The KMU has a static destination address,for nRF7120
