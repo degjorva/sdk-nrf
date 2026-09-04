@@ -12,7 +12,20 @@ add_subdirectory_ifdef(CONFIG_SECURE_BOOT_VALIDATION bootloader/bl_validation)
 add_subdirectory_ifdef(CONFIG_SECURE_BOOT_STORAGE bootloader/bl_storage)
 add_subdirectory_ifdef(CONFIG_NRF_LCS nrf_lcs)
 
-add_subdirectory_ifdef(CONFIG_NRF_SECURITY nrf_security)
+# nrf_security has been replaced by the standalone CRACEN deliveries. The
+# ncs-cracen-integration module is a drop-in for the former in-tree
+# subsys/nrf_security and is added here so that NRF_SECURITY_DIR and the
+# resolved CRACEN roots exist before nrf/modules is processed. Zephyr's module
+# loop reaches the same directory later and returns early.
+if(CONFIG_NRF_SECURITY)
+  if(NOT ZEPHYR_NCS_CRACEN_INTEGRATION_MODULE_DIR)
+    message(FATAL_ERROR
+      "CONFIG_NRF_SECURITY is enabled but the ncs-cracen-integration Zephyr "
+      "module was not found. Add it to the west manifest or pass it in "
+      "EXTRA_ZEPHYR_MODULES.")
+  endif()
+  add_subdirectory(${ZEPHYR_NCS_CRACEN_INTEGRATION_MODULE_DIR} ncs_cracen_integration)
+endif()
 add_subdirectory_ifdef(CONFIG_TRUSTED_STORAGE trusted_storage)
 add_subdirectory_ifdef(CONFIG_SECURE_STORAGE secure_storage)
 

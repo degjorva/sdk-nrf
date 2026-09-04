@@ -253,8 +253,9 @@ if((NRF_SOC_VARIANT MATCHES "nrf54l1[05]") OR
    (NRF_SOC_VARIANT MATCHES "nrf54lv10a") OR
    (NRF_SOC_VARIANT MATCHES "nrf54lm20[ab]") OR
    (NRF_SOC_VARIANT MATCHES "nrf7120"))
-  install(FILES ${ZEPHYR_NRF_MODULE_DIR}/subsys/nrf_security/src/drivers/cracen/cracenpsa/include/cracen_psa_key_ids.h
-                ${ZEPHYR_NRF_MODULE_DIR}/subsys/nrf_security/src/drivers/cracen/cracenpsa/include/cracen_psa_kmu.h
+  include(${CMAKE_CURRENT_LIST_DIR}/cracen_psa_include.cmake)
+  install(FILES ${CRACEN_PSA_INCLUDE_DIR}/cracen_psa_key_ids.h
+                ${CRACEN_PSA_INCLUDE_DIR}/cracen_psa_kmu.h
     DESTINATION ${INSTALL_INTERFACE_INC_DIR}
   )
 endif()

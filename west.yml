@@ -23,6 +23,9 @@ manifest:
     # Third-party repository sources:
     - name: zephyrproject
       url-base: https://github.com/zephyrproject-rtos
+    # Standalone CRACEN deliveries (private, local integration work).
+    - name: degjorva
+      url-base: https://github.com/degjorva
     - name: throwtheswitch
       url-base: https://github.com/ThrowTheSwitch
     - name: dragoon
@@ -147,14 +150,34 @@ manifest:
       path: modules/crypto/oberon-psa-crypto
       repo-path: sdk-oberon-psa-crypto
       revision: e8db62ed0fba5028e7ae0eba7b1fb63436ae6416
+    # Standalone CRACEN deliveries. These replace nrf/subsys/nrf_security:
+    #   cracen-driver          - PSA-neutral CRACEN hardware driver (delivery 1)
+    #   cracen-psa             - CRACEN PSA Crypto adapter (delivery 2)
+    #   ncs-cracen-integration - NCS/Zephyr adapter, drop-in for nrf_security (delivery 3)
+    - name: cracen-driver
+      remote: degjorva
+      repo-path: sdk-cracen-driver
+      path: modules/crypto/cracen-driver
+      revision: 062ce82a36cf7cbaa1115e15aec406d6ed69086f
+    - name: cracen-psa
+      remote: degjorva
+      repo-path: sdk-cracen-psa
+      path: modules/crypto/cracen-psa
+      revision: cc9385d7aec7f75ef4496a2bf6fc114e89d79e1e
+    - name: ncs-cracen-integration
+      remote: degjorva
+      repo-path: sdk-cracen-ncs-integration
+      path: modules/crypto/ncs-cracen-integration
+      revision: dcdeb5f93ff421fd7a5143b1f177e51ea61e0e33
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
       revision: dbeb418f40ea6f06b5789d02758db3d0375ba555
     - name: trusted-firmware-m
+      remote: degjorva
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tf-m/trusted-firmware-m
-      revision: b2dc08d416bef316c7464356be96699e9a6f24c1
+      revision: f0bc22ef761f8aa729ad10daa0f2b0d10b60444c
     - name: psa-arch-tests
       repo-path: sdk-psa-arch-tests
       path: modules/tee/tf-m/psa-arch-tests

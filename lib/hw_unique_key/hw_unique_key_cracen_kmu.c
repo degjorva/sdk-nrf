@@ -35,31 +35,31 @@ int hw_unique_key_derive_key(enum hw_unique_key_slot key_slot, const uint8_t *co
 			     PSA_KEY_LIFETIME_FROM_PERSISTENCE_AND_LOCATION(
 				     PSA_KEY_PERSISTENCE_READ_ONLY, PSA_KEY_LOCATION_CRACEN));
 
-	cracen_key_derivation_operation_t op = {};
+	cracen_psa_key_derivation_operation_t op = {};
 
-	status = cracen_key_derivation_setup(&op, NULL, PSA_ALG_SP800_108_COUNTER_CMAC);
+	status = cracen_psa_key_derivation_setup(&op, PSA_ALG_SP800_108_COUNTER_CMAC);
 	if (status != PSA_SUCCESS) {
 		if (status == PSA_ERROR_DOES_NOT_EXIST) {
 			return -HW_UNIQUE_KEY_ERR_MISSING;
 		}
 		return -HW_UNIQUE_KEY_ERR_DERIVE_FAILED;
 	}
-	status = cracen_key_derivation_input_key(&op, PSA_KEY_DERIVATION_INPUT_SECRET, &mkek_attr,
+	status = cracen_psa_key_derivation_input_key(&op, PSA_KEY_DERIVATION_INPUT_SECRET, &mkek_attr,
 						 NULL, 0);
 	if (status != PSA_SUCCESS) {
 		return -HW_UNIQUE_KEY_ERR_DERIVE_FAILED;
 	}
-	status = cracen_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_LABEL, label,
+	status = cracen_psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_LABEL, label,
 						   label_size);
 	if (status != PSA_SUCCESS) {
 		return -HW_UNIQUE_KEY_ERR_DERIVE_FAILED;
 	}
-	status = cracen_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_CONTEXT, context,
+	status = cracen_psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_CONTEXT, context,
 						   context_size);
 	if (status != PSA_SUCCESS) {
 		return -HW_UNIQUE_KEY_ERR_DERIVE_FAILED;
 	}
-	status = cracen_key_derivation_output_bytes(&op, output, output_size);
+	status = cracen_psa_key_derivation_output_bytes(&op, output, output_size);
 	if (status != PSA_SUCCESS) {
 		return -HW_UNIQUE_KEY_ERR_DERIVE_FAILED;
 	}
@@ -80,7 +80,7 @@ bool hw_unique_key_are_any_written(void)
 	key_id = mbedtls_svc_key_id_make(0, PSA_KEY_ID_FROM_CRACEN_KMU_SLOT(
 						CRACEN_KMU_KEY_USAGE_SCHEME_SEED,
 						CONFIG_CRACEN_IKG_SEED_KMU_SLOT));
-	return cracen_kmu_get_key_slot(key_id, &lifetime, &slot_number) == PSA_SUCCESS;
+	return cracen_psa_kmu_get_key_slot(key_id, &lifetime, &slot_number) == PSA_SUCCESS;
 }
 
 int hw_unique_key_write(enum hw_unique_key_slot key_slot, const uint8_t *key)
@@ -129,7 +129,7 @@ int hw_unique_key_write_random(void)
 		return -HW_UNIQUE_KEY_ERR_GENERATION_FAILED;
 	}
 
-	status = cracen_get_random(NULL, random_data, sizeof(random_data));
+	status = cracen_psa_get_random(NULL, random_data, sizeof(random_data));
 	if (status != PSA_SUCCESS) {
 		return -HW_UNIQUE_KEY_ERR_GENERATION_FAILED;
 	}

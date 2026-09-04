@@ -30,7 +30,11 @@ rsource "mgmt/fmfu/Kconfig"
 rsource "mgmt/mcumgr/Kconfig"
 rsource "caf/Kconfig"
 rsource "dm/Kconfig"
-rsource "nrf_security/Kconfig"
+# nrf_security Kconfig now lives in the ncs-cracen-integration module. It must be
+# sourced from here rather than from the module's own zephyr/module.yml: the
+# choice and configdefault overrides in it only win when they are parsed before
+# Zephyr's mbedtls Kconfig, and generic module Kconfigs are parsed after it.
+osource "$(ZEPHYR_NCS_CRACEN_INTEGRATION_MODULE_DIR)/Kconfig"
 rsource "net_core_monitor/Kconfig"
 rsource "audio_module/Kconfig"
 rsource "audio/audio_module_template/Kconfig"

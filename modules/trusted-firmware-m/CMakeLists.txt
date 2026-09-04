@@ -211,7 +211,7 @@ set(CONFIG_TFM_DOORBELL_API                ${CONFIG_TFM_DOORBELL_API})
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tfm_config.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/tfm_config.h)
 
-configure_file(${NRF_DIR}/subsys/nrf_security/configs/config_extra.cmake.in
+configure_file(${NRF_SECURITY_DIR}/configs/config_extra.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/config_extra.cmake
 )
 

@@ -354,7 +354,7 @@ static int block_enc_key(void)
 	}
 
 	/* PSA API standard does not support key blocking yet */
-	cracen_kmu_block(&attributes);
+	cracen_psa_kmu_block(&attributes);
 	if (status != PSA_SUCCESS) {
 		LOG_ERR("cracen_kmu_block failed! (Error: %d)", status);
 		return APP_ERROR;

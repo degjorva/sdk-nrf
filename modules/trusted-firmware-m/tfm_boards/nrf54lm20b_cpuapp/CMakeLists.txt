@@ -11,9 +11,11 @@ add_subdirectory(${Trusted\ Firmware\ M_SOURCE_DIR}/platform/ext/target/nordic_n
 
 add_subdirectory(${TFM_BOARDS_NRF_DIR} tfm_board)
 
+include(${TFM_BOARDS_NRF_DIR}/cracen_psa_include.cmake)
+
 target_include_directories(platform_s
   PUBLIC
-  ${ZEPHYR_NRF_MODULE_DIR}/subsys/nrf_security/src/drivers/cracen/cracenpsa/include
+  ${CRACEN_PSA_INCLUDE_DIR}
   )
 
 target_sources(platform_s
