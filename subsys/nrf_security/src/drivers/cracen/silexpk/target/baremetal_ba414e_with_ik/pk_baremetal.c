@@ -66,6 +66,13 @@ static struct sx_pk_cnx silex_pk_engine;
 
 NRF_SECURITY_MUTEX_DEFINE(cracen_mutex_asymmetric);
 
+static bool use_pke_interrupts(void)
+{
+	return IS_ENABLED(CONFIG_CRACEN_USE_INTERRUPTS) &&
+	       (!IS_ENABLED(CONFIG_PSA_NEED_CRACEN_IKG_INTERRUPT_WORKAROUND) ||
+		!IS_ENABLED(CONFIG_CRACEN_IKG));
+}
+
 bool ba414ep_is_busy(sx_pk_req *req)
 {
 	return (bool)(sx_pk_rdreg(&req->regs, PK_REG_STATUS) & PK_BUSY_MASK_BA414EP);
@@ -114,17 +121,18 @@ int read_status(sx_pk_req *req)
 int sx_pk_wait(sx_pk_req *req)
 {
 	do {
-		if (!IS_ENABLED(CONFIG_PSA_NEED_CRACEN_IKG_INTERRUPT_WORKAROUND) &&
-		    IS_ENABLED(CONFIG_CRACEN_USE_INTERRUPTS)) {
-			/* In CRACEN Lite the PKE-IKG interrupt is only active when in PK mode.
-			 * This is to work around a hardware issue where the interrupt is never
-			 * cleared. Therefore sx_pk_wait needs to use polling and not interrupts for
-			 * CRACEN Lite.
+		if (use_pke_interrupts()) {
+			/*
+			 * IKG operations do not use the PKE interrupt. On platforms with
+			 * the IKG interrupt workaround, use_pke_interrupts() is false
+			 * whenever IKG support is enabled.
 			 */
 			if (IS_ENABLED(CONFIG_CRACEN_IKG)) {
 				if (!sx_pk_is_ik_cmd(req)) {
 					cracen_wait_for_pke_interrupt();
 				}
+			} else {
+				cracen_wait_for_pke_interrupt();
 			}
 		} else if (IS_ENABLED(CONFIG_CRACEN_HW_VERSION_LITE)) {
 			/* In CRACEN Lite the IKG sometimes fails due to an entropy error.
@@ -252,20 +260,17 @@ void sx_pk_acquire_hw(sx_pk_req *req)
 	req->ik_mode = 0;
 
 	cracen_acquire();
-	if (!IS_ENABLED(CONFIG_PSA_NEED_CRACEN_IKG_INTERRUPT_WORKAROUND) &&
-	    IS_ENABLED(CONFIG_CRACEN_USE_INTERRUPTS)) {
-		/* In CRACEN Lite the PKE-IKG interrupt is only active when in PK mode.
-		 * This is to work around a hardware issue where the interrupt is never cleared.
-		 * Therefore it is not enabled here for Cracen Lite.
+	if (use_pke_interrupts()) {
+		/*
+		 * Keep PKE interrupts disabled when IKG support requires the
+		 * interrupt workaround. PKE-only builds can safely use them.
 		 */
 		nrf_cracen_int_enable(NRF_CRACEN, NRF_CRACEN_INT_PKE_IKG_MASK);
 	}
 
 	/* Wait until initialized. */
 	while (ba414ep_is_busy(req) || ik_is_busy(req)) {
-		if (!IS_ENABLED(CONFIG_PSA_NEED_CRACEN_IKG_INTERRUPT_WORKAROUND) &&
-		    IS_ENABLED(CONFIG_CRACEN_USE_INTERRUPTS)) {
-
+		if (use_pke_interrupts()) {
 			cracen_wait_for_pke_interrupt();
 		}
 	}
