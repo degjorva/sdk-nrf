@@ -1,0 +1,12 @@
+tests:
+  nrf_security.ikg_personalization:
+    sysbuild: true
+    platform_allow: nrf54l15dk/nrf54l15/cpuapp
+    integration_platforms:
+      - nrf54l15dk/nrf54l15/cpuapp
+    tags: nrf_security cracen
+    harness: console
+    harness_config:
+      type: one_line
+      regex:
+        - "RESULT: zero_word=.*"
